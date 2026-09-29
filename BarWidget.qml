@@ -292,6 +292,7 @@ BarWidget {
 
   function rebuildIndex() {
     root.events = Cal.withoutHidden(Cal.mergeWeeks(root.weekCache), root.hiddenCalendars)
+      .filter(function(event) { return !root.deletedEventKeys[event.key] })
     root.byDay = Cal.indexByDay(root.events)
   }
 
@@ -325,11 +326,13 @@ BarWidget {
 
   property string writeError: ""
   property bool writing: false
+  property string deletingEventKey: ""
+  property var deletedEventKeys: ({})
   property string writingDayKey: ""
   signal writeFinished(bool ok, string message)
 
   function runWrite(command, dayKey) {
-    if (writeProcess.running || !command || command.length === 0) return false
+    if (root.writing || writeProcess.running || !command || command.length === 0) return false
     root.writeError = ""
     root.writing = true
     root.writingDayKey = dayKey || ""
@@ -339,10 +342,20 @@ BarWidget {
   }
 
   function finishWrite(exitCode, stdout) {
-    root.writing = false
     var result = root.backend.writeResult(exitCode, stdout)
     var ok = result.ok
     var message = result.message
+    // Hide a confirmed deletion before releasing the UI lock. A read started
+    // before the deletion may still complete later; never resurrect its row.
+    if (ok && root.deletingEventKey !== "") {
+      var deleted = {}
+      for (var key in root.deletedEventKeys) deleted[key] = true
+      deleted[root.deletingEventKey] = true
+      root.deletedEventKeys = deleted
+      rebuildIndex()
+    }
+    root.deletingEventKey = ""
+    root.writing = false
     root.writeError = ok ? "" : message
     if (!ok) root.stoppedAt = 0
     if (root.writingDayKey !== "") invalidateDay(root.writingDayKey)
@@ -361,7 +374,11 @@ BarWidget {
   }
 
   function deleteEvent(event, dayKey) {
-    return runWrite(root.backend.deleteCommand(event), dayKey)
+    if (!event || root.writing || root.deletedEventKeys[event.key]) return false
+    root.deletingEventKey = event.key
+    if (runWrite(root.backend.deleteCommand(event), dayKey)) return true
+    root.deletingEventKey = ""
+    return false
   }
 
   function startTimeTrack() {

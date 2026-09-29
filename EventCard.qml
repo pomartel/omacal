@@ -45,6 +45,12 @@ Item {
   }
 
   property bool confirming: false
+  onBusyChanged: if (busy) root.confirming = true
+
+  function confirmDeletion() {
+    if (root.busy || !root.deletable) return
+    root.deleteRequested()
+  }
 
   implicitWidth: parent ? parent.width : Style.space(400)
   implicitHeight: Math.max(confirming ? confirmDelete.implicitHeight + Style.space(10) : 0, pill
@@ -252,7 +258,7 @@ Item {
       foreground: root.ink
       accent: Color.urgent
       fontFamily: root.fontFamily
-      onClicked: root.deleteRequested()
+      onClicked: root.confirmDeletion()
     }
   }
 }

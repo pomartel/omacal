@@ -92,7 +92,6 @@ Panel {
   property bool composing: false
   property bool showingSettings: false
   property bool keyboardHelpVisible: false
-  property string deletingKey: ""
 
   function handleCalendarKey(event) {
     if (root.editingLife || root.composing || root.renamingTrack || root.showingSettings) return
@@ -217,9 +216,8 @@ Panel {
   }
 
   function deleteEvent(event) {
-    if (!root.hostWidget || !event) return
-    root.deletingKey = event.key
-    if (!root.hostWidget.deleteEvent(event, root.selectedKey)) root.deletingKey = ""
+    if (!root.hostWidget || !event || root.hostWidget.writing) return
+    root.hostWidget.deleteEvent(event, root.selectedKey)
   }
 
   // "MON 28": HEY's day heading, in English like the rest of the grid.
@@ -243,7 +241,6 @@ Panel {
     target: root.hostWidget
     ignoreUnknownSignals: true
     function onWriteFinished(ok, message) {
-      root.deletingKey = ""
       if (ok && root.composing) root.cancelComposing()
     }
   }
@@ -1197,7 +1194,7 @@ Panel {
                     nowMs: root.nowMs
                     foreground: root.contentForeground
                     fontFamily: root.contentFontFamily
-                    busy: root.deletingKey === modelData.key
+                    busy: !!root.hostWidget && root.hostWidget.deletingEventKey === modelData.key
                     onActivated: root.activateEvent(modelData)
                     onDeleteRequested: root.deleteEvent(modelData)
                   }

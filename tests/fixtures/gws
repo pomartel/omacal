@@ -3,6 +3,8 @@
 import json
 import os
 import sys
+import time
+from pathlib import Path
 
 if os.environ.get("OMACAL_FIXTURE_OFFLINE") == "1":
     print(json.dumps({"error": {"message": "Offline fixture"}}))
@@ -25,6 +27,17 @@ else:
             "end": {"dateTime": day + "T10:00:00-05:00"}}]}
     elif operation == ["calendar", "calendarList", "get"]:
         value = calendar
+    elif operation == ["calendar", "events", "get"]:
+        value = {"id": params["eventId"]}
+    elif operation == ["calendar", "events", "delete"]:
+        counter = Path(os.environ["XDG_CACHE_HOME"]) / "delete-calls"
+        with counter.open("a") as stream:
+            stream.write("delete\n")
+        time.sleep(0.3)
+        if os.environ.get("OMACAL_FIXTURE_DELETE_FAIL") == "1":
+            print(json.dumps({"error": {"message": "Fixture deletion failed"}}))
+            sys.exit(1)
+        sys.exit(0)  # Google returns an empty body on successful deletion.
     elif operation == ["calendar", "events", "insert"]:
         body = json.loads(args[args.index("--json") + 1])
         assert params["calendarId"] == calendar["id"]
