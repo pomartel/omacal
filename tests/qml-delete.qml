@@ -11,7 +11,7 @@ ShellRoot {
   readonly property bool expectFailure: Quickshell.env("OMACAL_FIXTURE_DELETE_FAIL") === "1"
   Plugin.BarWidget {
     id: widget
-    settings: ({ backend: "google", googleAccount: "calendar@example.test", notifications: false })
+    settings: ({ googleAccount: "calendar@example.test", notifications: false })
     onWriteFinished: function(ok, message) {
       if (ok === root.expectFailure) throw new Error("Unexpected delete result: " + message)
       if (widget.writing || widget.deletingEventKey !== "") throw new Error("Delete lock not released")

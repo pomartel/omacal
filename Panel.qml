@@ -15,11 +15,11 @@ import "Calendar.js" as Cal
 // BarWidget.qml owns the bar label and hands this panel the button to
 // anchor against.
 //
-// HEY is laid over the stock calendar rather than beside it. Under each day
+// Google Agenda is laid over the stock calendar rather than beside it. Under each day
 // sits a chip per calendar color, carrying how many of that day's events
 // wear it. Clicking a day selects it, and the day view under the grid shows
-// what is on it the way HEY draws a day, with a button to add an event
-// there. BarWidget.qml owns the HEY data, since reminders have to fire with
+// what is on it as a day view, with a button to add an event
+// there. BarWidget.qml owns the calendar data, since reminders have to fire with
 // this panel closed.
 Panel {
   id: root
@@ -77,7 +77,7 @@ Panel {
   readonly property var weekdays: Model.weekdayOrder(weekStart)
   readonly property var weeks: Model.monthGrid(viewYear, viewMonth, weekStart, todayKey)
 
-  // ---- HEY. Everything below reads the host's state; nothing here fetches.
+  // ---- Events. Everything below reads the host's state; nothing here fetches.
   readonly property var byDay: hostWidget ? hostWidget.byDay : ({})
   readonly property bool hour24: hostWidget ? hostWidget.hour24 === true : true
   // The host's clock ticks every minute, which is what "maintenant" and "past" are
@@ -94,7 +94,7 @@ Panel {
   property bool keyboardHelpVisible: false
 
   function handleCalendarKey(event) {
-    if (root.editingLife || root.composing || root.renamingTrack || root.showingSettings) return
+    if (root.editingLife || root.composing || root.showingSettings) return
     var key = event.key
     var text = event.text || ""
     var ctrl = (event.modifiers & Qt.ControlModifier) !== 0
@@ -137,19 +137,11 @@ Panel {
     root.showingSettings = false
     Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
   }
-  readonly property var selectedTracks: hostWidget && hostWidget.tracksByDay ? (hostWidget.tracksByDay[selectedKey] || []) : []
-  readonly property bool renamingTrack: !!hostWidget && hostWidget.renameTrackId !== ""
-
-  function finishRenaming() {
-    if (root.hostWidget) root.hostWidget.renameTrackId = ""
-    Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
-  }
-
   onWeeksChanged: requestVisibleWeeks()
   onHostWidgetChanged: requestVisibleWeeks()
 
-  // Every HEY week the grid touches: six rows, and a seventh when the rows
-  // start on Sunday and straddle HEY's Monday weeks.
+  // Every Monday-based week the grid touches: six rows, and a seventh when the rows
+  // start on Sunday and straddle Monday weeks.
   function requestVisibleWeeks() {
     if (!root.hostWidget || !root.weeks || root.weeks.length === 0) return
     var first = root.weeks[0].days[0].key
@@ -220,7 +212,7 @@ Panel {
     root.hostWidget.deleteEvent(event, root.selectedKey)
   }
 
-  // "MON 28": HEY's day heading, in English like the rest of the grid.
+  // The selected day's heading, using the panel locale.
   function dayHeading(key) {
     var date = Cal.dateFromKey(key)
     return root.weekdayLabel(date.getDay()) + " " + date.getDate()
@@ -870,7 +862,7 @@ Panel {
                         ? Style.selectionFillFor(root.contentForeground, Color.accent)
                         : (cellMouse.containsMouse ? Style.hoverFillFor(root.contentForeground, Color.accent) : "transparent")
 
-                      // Today, the way HEY marks it: the number on HEY's warm
+                      // Today: the number on the warm
                       // orange, the same as the day view's heading.
                       Rectangle {
                         visible: modelData.today
@@ -1030,8 +1022,8 @@ Panel {
             }
           }
 
-          // ---- The selected day, as HEY draws one: its heading (today in
-          //      HEY's orange), the all-day pills, then a block per event.
+          // ---- The selected day, its heading (today in
+          //      warm orange), the all-day pills, then a block per event.
           //      The new-event form takes this place while it is open.
           Item {
             width: parent.width
@@ -1140,7 +1132,7 @@ Panel {
 
                   PanelActionButton {
                     iconText: "󰏌"
-                    visible: !!root.hostWidget && root.hostWidget.capabilities.dayLink
+                    visible: !!root.hostWidget
                     tooltipText: "Ouvrir cette journée dans " + (root.hostWidget ? root.hostWidget.backendName : "") + " (O)"
                     foreground: root.contentForeground
                     fontFamily: root.contentFontFamily
@@ -1217,7 +1209,7 @@ Panel {
                   font.pixelSize: Style.font.bodySmall
                 }
 
-                // What an empty day means depends on whether HEY answered.
+                // What an empty day means depends on whether Google answered.
                 Text {
                   visible: root.selectedEvents.length === 0 || (root.hostWidget && root.hostWidget.lastError !== "")
                   width: parent.width
@@ -1251,103 +1243,6 @@ Panel {
                 }
               }
 
-              // ---- Time tracked on the day. A track just stopped comes up
-              //      with its name field open.
-              Column {
-                visible: !root.composing && root.selectedTracks.length > 0
-                width: parent.width
-                spacing: Style.space(4)
-
-                Text {
-                  textFormat: Text.PlainText
-                  topPadding: Style.space(4)
-                  text: "TEMPS SUIVI · " + Cal.durationLabel(Cal.trackedOnDay(root.selectedTracks, root.selectedKey))
-                  color: Qt.darker(root.contentForeground, 1.5)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption
-                  font.letterSpacing: 1
-                }
-
-                Repeater {
-                  model: root.selectedTracks
-
-                  TimeTrackRow {
-                    required property var modelData
-                    width: parent.width
-                    track: modelData
-                    dayKey: root.selectedKey
-                    hour24: root.hour24
-                    renaming: !!root.hostWidget && root.hostWidget.renameTrackId === modelData.id
-                    busy: !!root.hostWidget && root.hostWidget.writing
-                    foreground: root.contentForeground
-                    fontFamily: root.contentFontFamily
-                    onRenameStarted: if (root.hostWidget) root.hostWidget.renameTrackId = modelData.id
-                    onRenameCanceled: root.finishRenaming()
-                    onRenameRequested: function(name) {
-                      if (root.hostWidget) root.hostWidget.renameTimeTrack(modelData.id, name)
-                      root.finishRenaming()
-                    }
-                    onDeleteRequested: if (root.hostWidget) root.hostWidget.deleteTimeTrack(modelData.id)
-                  }
-                }
-              }
-
-              // ---- HEY's time tracking, on today: one tap to start, one to
-              //      stop, and how long it has been running.
-              Item {
-                visible: root.selectedIsToday && !root.composing && !!root.hostWidget && root.hostWidget.backendMode !== "" && root.hostWidget.capabilities.timeTracking
-                width: parent.width
-                height: visible ? trackButton.implicitHeight : 0
-
-                readonly property var track: root.hostWidget ? root.hostWidget.timeTrack : null
-
-                Text {
-                  id: trackIcon
-                  anchors.left: parent.left
-                  anchors.verticalCenter: parent.verticalCenter
-                  text: "󱎫"
-                  color: parent.track ? Color.urgent : Qt.darker(root.contentForeground, 1.6)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.icon
-                }
-
-                Text {
-                  anchors.left: trackIcon.right
-                  anchors.leftMargin: Style.space(8)
-                  anchors.right: trackButton.left
-                  anchors.rightMargin: Style.space(8)
-                  anchors.verticalCenter: parent.verticalCenter
-                  textFormat: Text.PlainText
-                  elide: Text.ElideRight
-                  text: {
-                    var track = parent.track
-                    if (!track) return "Aucun suivi en cours"
-                    var since = Cal.formatTime(new Date(track.startMs), root.hour24)
-                    return "Suivi en cours : " + Cal.durationLabel(root.nowMs - track.startMs)
-                      + " · depuis " + since + (track.title !== "" ? " · " + track.title : "")
-                  }
-                  color: parent.track ? root.contentForeground : Qt.darker(root.contentForeground, 1.6)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.bodySmall
-                }
-
-                Button {
-                  id: trackButton
-                  anchors.right: parent.right
-                  anchors.verticalCenter: parent.verticalCenter
-                  text: parent.track ? "Arrêter" : "Démarrer"
-                  iconText: parent.track ? "󰓛" : "󰐊"
-                  bordered: true
-                  enabled: !!root.hostWidget && !root.hostWidget.writing
-                  foreground: root.contentForeground
-                  fontFamily: root.contentFontFamily
-                  fontSize: Style.font.bodySmall
-                  onClicked: {
-                    if (parent.track) root.hostWidget.stopTimeTrack()
-                    else root.hostWidget.startTimeTrack()
-                  }
-                }
-              }
             }
           }
         }

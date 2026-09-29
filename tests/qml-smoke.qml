@@ -66,7 +66,7 @@ ShellRoot {
   property var rangeWeeks: []
   Plugin.BarWidget {
     id: widget
-    settings: ({ backend: "google", googleAccount: "calendar@example.test", notifications: false })
+    settings: ({ googleAccount: "calendar@example.test", notifications: false })
     onWriteFinished: function(ok, message) {
       if (!ok) throw new Error("Fixture write failed: " + message)
       quickAdd.submit({title: "Fixture write", date: "2026-09-28", allDay: true,
@@ -76,7 +76,7 @@ ShellRoot {
   Plugin.QuickAdd {
     id: quickAdd
     shell: QtObject {
-      property var barConfig: ({ layout: { center: [{ id: "pomartel.omacal", backend: "google", googleAccount: "calendar@example.test" }] } })
+      property var barConfig: ({ layout: { center: [{ id: "pomartel.omacal", googleAccount: "calendar@example.test" }] } })
       function hide(id) {
         if (quickAdd.error !== "" || quickAdd.busy) throw new Error("Quick-add write did not finish")
         console.log("OMACAL_QML_SMOKE_OK")
@@ -84,7 +84,7 @@ ShellRoot {
       }
     }
   }
-  Plugin.QuickAdd { id: heyQuickAdd }
+  Plugin.QuickAdd { id: defaultQuickAdd }
   Plugin.EventForm {
     id: form
     calendars: widget.writableCalendars
@@ -102,8 +102,7 @@ ShellRoot {
       if (widget.events[0].calendarId !== "calendar@example.test") throw new Error("Lost calendar ID")
       if (form.calendarId !== "calendar@example.test") throw new Error("Form lost calendar ID")
       if (quickAdd.backend.info.id !== "google") throw new Error("Quick add uses wrong backend")
-      if (heyQuickAdd.backend.info.id !== "hey") throw new Error("Default HEY backend changed")
-      if (widget.capabilities.watch || widget.capabilities.timeTracking) throw new Error("Wrong capabilities")
+      if (defaultQuickAdd.backend.info.id !== "google") throw new Error("Default Google backend changed")
       if (!root.rangeStarted) {
         var restored = widget.weekCache["2020-01-06"]
         if (!restored || !restored.cached || restored.events.length !== 1) throw new Error("Startup cache was not restored")

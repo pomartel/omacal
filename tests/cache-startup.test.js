@@ -16,7 +16,7 @@ const context = vm.createContext({ root, cacheProcess, Cal,
 vm.runInContext(initialization + '\n' + restore, context)
 root.initializeCalendar = context.initializeCalendar
 
-// QML completes with HEY defaults; the bar supplies Google settings afterward.
+// QML completes before the bar supplies the Google account settings.
 vm.runInContext(completed, context)
 assert.equal(refreshes, 0)
 assert.equal(cacheProcess.running, false)
@@ -36,10 +36,4 @@ assert.equal(root.weekCache['2026-09-28'].events.length, 1)
 assert.equal(root.weekCache['2026-09-28'].at, at * 1000)
 assert.equal(root.weekCache['2026-09-28'].cached, true)
 
-// HEY retains its normal startup behavior once settings have been injected.
-root.backend = {}
-cacheProcess.running = false
-deferred()
-assert.equal(refreshes, 1)
-assert.equal(cacheProcess.running, false)
 console.log('Cache startup tests passed')

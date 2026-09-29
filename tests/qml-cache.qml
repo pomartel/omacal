@@ -5,7 +5,7 @@ import "plugin" as Plugin
 ShellRoot {
   Plugin.BarWidget {
     id: widget
-    settings: ({ backend: "google", googleAccount: "calendar@example.test", notifications: false })
+    settings: ({ googleAccount: "calendar@example.test", notifications: false })
   }
   Timer {
     interval: 100

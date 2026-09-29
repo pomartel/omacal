@@ -5,7 +5,7 @@
   "version": "1.0.1",
   "author": "Carmine Paolino",
   "license": "MIT",
-  "description": "Horloge et calendrier en français : événements, rappels, ajout rapide et suivi du temps. Compatible avec HEY et Google Agenda via gws.",
+  "description": "Horloge et calendrier Google Agenda en français : événements, rappels et ajout rapide via gws.",
   "kinds": [
     "service",
     "bar-widget",
@@ -23,34 +23,21 @@
     "aliases": [
       "calendar",
       "clock",
-      "hey",
       "events",
       "omacal"
     ],
     "allowMultiple": false,
     "defaultSection": "center",
     "defaults": {
-      "backend": "hey",
       "googleAccount": "",
       "alertLeadMinutes": 15,
       "notifications": true,
-      "liveSync": true,
       "timeFormat": "auto",
       "refreshIntervalSec": 300,
       "quickAddShortcut": "ALT + SHIFT + SPACE",
       "barEvent": "soon"
     },
     "schema": [
-      {
-        "key": "backend",
-        "type": "enum",
-        "label": "Service de calendrier (redémarrer le shell après modification)",
-        "options": [
-          "hey",
-          "google"
-        ],
-        "defaultValue": "hey"
-      },
       {
         "key": "googleAccount",
         "type": "string",
@@ -108,13 +95,6 @@
         "description": "« auto » suit les paramètres régionaux du système."
       },
       {
-        "key": "liveSync",
-        "type": "boolean",
-        "label": "Synchroniser HEY en direct",
-        "defaultValue": true,
-        "description": "Garde hey watch actif pour recevoir les modifications faites ailleurs en quelques secondes."
-      },
-      {
         "key": "refreshIntervalSec",
         "type": "integer",
         "label": "Intervalle d’actualisation (secondes)",
@@ -128,7 +108,7 @@
         "type": "string",
         "label": "Calendriers masqués",
         "defaultValue": "",
-        "description": "Noms des calendriers à masquer, séparés par des virgules. Nécessaire avec hey-cli 1.3, qui ne détecte pas les calendriers désactivés dans HEY."
+        "description": "Noms des calendriers à masquer, séparés par des virgules."
       }
     ]
   }

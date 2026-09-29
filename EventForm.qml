@@ -3,15 +3,13 @@ import qs.Commons
 import qs.Ui
 import "Calendar.js" as Cal
 
-// A new event, with the fields HEY's own quick form asks for: a title,
+// A new event, with the fields needed by Google Agenda: a title,
 // which calendar, which day, when, where, and a reminder. The calendar
 // panel's + button and the Alt+Shift+Space quick-add card are both this.
 //
 // Days and times are typed, not picked: "fri", "tomorrow", "3 oct" for the
 // day; "9", "930", "9:30pm", "21.30" for times. An end earlier than the
-// start is read as the next morning. The event
-// is created through `hey event add`, so HEY applies its own defaults to
-// anything left blank.
+// start is read as the next morning. The event is created through gws.
 //
 // Built to be used without a mouse. Tab and Shift+Tab walk every field,
 // the calendar row and the reminder row included; on those rows the arrow
@@ -263,7 +261,7 @@ Item {
       }
     }
 
-    // Calendars as HEY paints them: a pastel pill each, the chosen one
+    // Calendars: a pastel pill each, the chosen one
     // outlined. A list this short reads faster as colors than as a menu.
     // Tab lands on the row as a whole, and the arrow keys pick.
     Item {

@@ -3,12 +3,12 @@ import qs.Commons
 import qs.Ui
 import "Calendar.js" as Cal
 
-// One event in the day view, drawn the way HEY draws it: a block in the
+// One event in the day view, drawn as a block in the
 // calendar's pastel with dark ink, the time small above a bold title.
-// All-day events, and the middle days of something longer, are HEY's thin
+// All-day events, and the middle days of something longer, use thin
 // pill instead, since there is no time to put above them.
 //
-// Clicking opens the meeting link when there is one and the event in HEY
+// Clicking opens the meeting link when there is one and the event in Google Agenda
 // otherwise. A one-off event carries a delete button on hover, which asks
 // once before doing anything; a repeating one does not, because deleting by
 // id would take the whole series with it.
@@ -65,7 +65,7 @@ Item {
     radius: root.pill ? height / 2 : Math.max(3, Style.cornerRadius)
     color: root.fill
     // The event under way gets a ring in the theme's attention color, the
-    // one mark here that is not HEY's own.
+    // highlighting the current event.
     border.width: root.current ? 2 : 0
     border.color: Color.urgent
 

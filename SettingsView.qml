@@ -3,7 +3,7 @@ import qs.Commons
 import qs.Ui
 import "Calendar.js" as Cal
 
-// HEY Calendar's settings, inside the panel. Omarchy keeps a widget's
+// Google Agenda settings, inside the panel. Omarchy keeps a widget's
 // schema but draws no settings screen for it yet, so this is where they are
 // set. Every change is written to the widget's entry in shell.json the
 // moment it is made, the same place the stock settings live.
@@ -221,17 +221,6 @@ FocusScope {
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.save("notifications", !checked)
-    }
-
-    Toggle {
-      width: parent.width
-      visible: !!root.host && root.host.capabilities.watch
-      label: "Synchronisation en direct"
-      description: "Afficher en quelques secondes les modifications faites ailleurs."
-      checked: root.value("liveSync", true) !== false
-      foreground: root.foreground
-      fontFamily: root.fontFamily
-      onClicked: root.save("liveSync", !checked)
     }
 
     // ---- Calendars

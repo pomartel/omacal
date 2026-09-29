@@ -14,9 +14,9 @@ assert.equal(Cal.mergeWeeks({a: {events: [event]}, b: {events: [event]}}).length
 const calendars = Cal.parseCalendars(JSON.stringify([
   {id: 'team@example.test', name: 'Team', owned: true},
   {id: 'holidays@example.test', name: 'Holidays', owned: false},
-  {id: 7, name: 'HEY', owned: true}
+  {id: 'personal@example.test', name: 'Personal', owned: true}
 ]))
-assert.deepEqual(Cal.writableCalendars(calendars).map(c => c.id), ['team@example.test', 7])
+assert.deepEqual(Cal.writableCalendars(calendars).map(c => c.id), ['team@example.test', 'personal@example.test'])
 const request = Cal.validateEvent({title: '"; touch /tmp/not-executed; #', date: '2026-09-28', allDay: true,
   calendarId: 'team@example.test'}).request
 assert.equal(request.calendarId, 'team@example.test')
@@ -25,8 +25,6 @@ assert.equal(argv[5], '/tmp/a folder/google.py')
 assert.equal(argv[6], 'create')
 assert.equal(argv[7], 'calendar@example.test')
 assert.deepEqual(JSON.parse(argv[8]), request)
-assert.equal(backend.info.capabilities.watch, false)
-assert.equal(backend.info.capabilities.timeTracking, false)
 assert.deepEqual(backend.deleteCommand({...event, recurring: true}), [])
 assert.deepEqual(backend.deleteCommand({...event, writable: false}), [])
 assert.equal(JSON.parse(backend.deleteCommand(event)[8]).id, id)

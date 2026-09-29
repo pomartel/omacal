@@ -29,14 +29,14 @@ draw = ImageDraw.Draw(card)
 
 draw.text((160, 170), "OMACAL / CRMNE", font=mono(36), fill="#fcb55b", spacing=8)
 draw.multiline_text((152, 300), "Your calendar,\nright in your bar.", font=bold, fill="#eee7e5", spacing=24)
-draw.multiline_text((160, 690), "Omarchy's own calendar, with your days in it.\nHEY first, more calendars to come.",
+draw.multiline_text((160, 690), "Omarchy's own calendar, with your days in it.\nGoogle Agenda, cached locally.",
                     font=mono(40), fill="#b4a6a1", spacing=22)
 features = [
     "Per-calendar chips on every day",
-    "Click a day to see it, HEY style",
+    "Click a day to see its events",
     "Your next event in the bar",
     "Quick add with Alt + Shift + Space",
-    "Reminders, time tracking, live sync",
+    "Reminders and offline cache",
 ]
 for i, text in enumerate(features):
     y = 930 + i * 104

@@ -5,7 +5,6 @@ import qs.Commons
 import qs.Ui
 import "Model.js" as Model
 import "Calendar.js" as Cal
-import "backends/Hey.js" as Hey
 import "backends/Google.js" as Google
 
 // Date/time label for the bar, and the host for the calendar popup.
@@ -15,7 +14,7 @@ import "backends/Google.js" as Google
 // middle click opens the timezone picker.
 //
 // This is Omarchy's stock clock, and it also owns the calendar the popup
-// draws: the weeks on screen, the calendars, the time track under way, and
+// draws: the weeks on screen, the calendars and
 // the reminders. It owns them rather than the panel because reminders have
 // to fire with the panel closed. Everything it knows about the calendar
 // service comes through Backend; everything it computes, through Cal.
@@ -42,7 +41,7 @@ BarWidget {
   // The event the bar names in front of the clock, as the macOS menu-bar
   // calendars do. Horizontal bars only: a vertical one has no room.
   readonly property string barEventMode: String(setting("barEvent", "soon"))
-  // Every event inside its alert window (from its earliest HEY reminder
+  // Every event inside its alert window (from its earliest reminder
   // until it ends), most pressing first; the bar names the first and counts
   // the rest.
   readonly property var shownEvents: Cal.barSelection(barEventMode, events, todayEvents, displayDate.getTime(), alertLeadMinutes)
@@ -60,7 +59,6 @@ BarWidget {
   readonly property int alertLeadMinutes: Cal.normalizedAlertLead(setting("alertLeadMinutes", 15))
   readonly property int refreshIntervalSec: Cal.normalizedRefreshInterval(setting("refreshIntervalSec", 300))
   readonly property bool notificationsEnabled: setting("notifications", true) !== false
-  readonly property bool liveSync: setting("liveSync", true) !== false
   readonly property string timeFormat: String(setting("timeFormat", "auto"))
   readonly property var hiddenCalendars: Cal.parseHiddenCalendars(setting("hiddenCalendars", []))
   onHiddenCalendarsChanged: rebuildIndex()
@@ -76,29 +74,17 @@ BarWidget {
   // and `byDay` the same events indexed by the days they touch, which is
   // what both the month grid and the day view read.
   property var weekCache: ({})
-  // The backend, and how its probe said to read it (for HEY: "week" on
-  // hey-cli 1.4.0+, "list" on 1.3.x, Omarchy's own package), or "" until
-  // the probe has answered, or when it never will. Nothing is fetched until
-  // this is known.
-  readonly property var backend: String(setting("backend", "hey")) === "google"
-    ? Google.configured(decodeURIComponent(String(Qt.resolvedUrl("backends/google.py")).replace(/^file:\/\//, "")), String(setting("googleAccount", "")))
-    : Hey
+  // Google Agenda is the only calendar service. Settings arrive from the bar.
+  readonly property var backend: Google.configured(
+    decodeURIComponent(String(Qt.resolvedUrl("backends/google.py")).replace(/^file:\/\//, "")),
+    String(setting("googleAccount", "")))
   readonly property string backendName: backend.info.name
-  readonly property var capabilities: backend.info.capabilities
   property string backendMode: ""
-  property string backendVersion: ""
   property bool backendChecked: false
   property var events: []
   property var byDay: ({})
   property var calendars: []
   readonly property var writableCalendars: Cal.writableCalendars(calendars)
-  property var timeTrack: null
-  // Finished time tracks by day, and the one waiting to be named: set when
-  // a Stop lands, so the panel can ask for a name right away.
-  property var timeTracks: []
-  property var tracksByDay: ({})
-  property string renameTrackId: ""
-  property real stoppedAt: 0
   property bool loading: false
   // "Nothing on today" and "we have not looked yet" are the same empty list
   // and very different things to put on screen.
@@ -136,34 +122,15 @@ BarWidget {
 
   function refreshCalendar(force) {
     if (!root.backendChecked) {
-      if (!versionProcess.running) versionProcess.running = true
+      if (!probeProcess.running) probeProcess.running = true
       return
     }
     if (root.backendMode === "") {
-      if (!versionProcess.running) versionProcess.running = true
+      if (!probeProcess.running) probeProcess.running = true
       return
     }
     requestWeeks(baseWeeks().concat(root.visibleWeeks), force === true)
     if (!calendarsProcess.running) calendarsProcess.running = true
-    refreshTimeTrack()
-  }
-
-  function refreshTimeTrack() {
-    if (!root.capabilities.timeTracking) return
-    if (!timeTrackProcess.running) timeTrackProcess.running = true
-    if (!timeTracksProcess.running) timeTracksProcess.running = true
-  }
-
-  function applyTimeTracks(text) {
-    var parsed = Cal.parseTimeTracks(text)
-    if (parsed === null) return
-    root.timeTracks = parsed
-    root.tracksByDay = Cal.tracksByDay(parsed)
-    if (root.stoppedAt > 0) {
-      var stopped = Cal.newestTrackSince(parsed, root.stoppedAt - 120000)
-      if (stopped) root.renameTrackId = stopped.id
-      root.stoppedAt = 0
-    }
   }
 
   function showWeeks(keys) {
@@ -234,7 +201,7 @@ BarWidget {
     wanted = wanted.slice(0, batchSize)
     root.loading = true
     root.fetchingWeeks = wanted
-    weekProcess.command = root.backend.fetchCommand(root.backendMode, wanted)
+    weekProcess.command = root.backend.fetchCommand(wanted)
     weekProcess.running = true
   }
 
@@ -322,7 +289,7 @@ BarWidget {
     root.shownReminders = shown
   }
 
-  // ---- Writes. Each one re-reads what it changed once HEY has answered.
+  // ---- Writes. Each one re-reads what it changed once Google has answered.
 
   property string writeError: ""
   property bool writing: false
@@ -357,9 +324,7 @@ BarWidget {
     root.deletingEventKey = ""
     root.writing = false
     root.writeError = ok ? "" : message
-    if (!ok) root.stoppedAt = 0
     if (root.writingDayKey !== "") invalidateDay(root.writingDayKey)
-    refreshTimeTrack()
     root.writeFinished(ok, message)
   }
 
@@ -381,31 +346,13 @@ BarWidget {
     return false
   }
 
-  function startTimeTrack() {
-    return root.capabilities.timeTracking && runWrite(root.backend.trackStartCommand(), "")
-  }
-
-  function stopTimeTrack() {
-    root.stoppedAt = Date.now()
-    return root.capabilities.timeTracking && runWrite(root.backend.trackStopCommand(), "")
-  }
-
-  function renameTimeTrack(id, name) {
-    root.renameTrackId = ""
-    return root.capabilities.timeTracking && runWrite(root.backend.trackRenameCommand(id, name), "")
-  }
-
-  function deleteTimeTrack(id) {
-    return root.capabilities.timeTracking && runWrite(root.backend.trackDeleteCommand(id), "")
-  }
-
   // The backend's page for a day, or "" when it has none.
   function dayUrl(dayKey) {
-    return root.capabilities.dayLink ? root.backend.dayUrl(dayKey) : ""
+    return root.backend.dayUrl(dayKey)
   }
 
   function modeNote() {
-    return root.backend.modeNote(root.backendMode, root.backendVersion)
+    return root.backend.modeNote()
   }
 
   function openUrl(url) {
@@ -553,8 +500,7 @@ BarWidget {
   onSettingsChanged: injectPanel()
 
   function initializeCalendar() {
-    if (root.backend.cacheCommand) cacheProcess.running = true
-    else root.refreshCalendar(true)
+    cacheProcess.running = true
   }
 
   // The bar injects settings in Loader.onLoaded, after Component.onCompleted.
@@ -579,7 +525,7 @@ BarWidget {
     onTriggered: root.refreshCalendar(true)
   }
 
-  // Reminders are checked off the cached events, not off HEY, so this is
+  // Reminders are checked off the cached events, not off Google, so this is
   // cheap enough to run often and lands within seconds of the minute.
   Timer {
     interval: 15000
@@ -592,7 +538,7 @@ BarWidget {
   Process {
     id: cacheProcess
     running: false
-    command: root.backend.cacheCommand || []
+    command: root.backend.cacheCommand
     stdout: StdioCollector { id: cacheOutput; waitForEnd: true }
     onExited: function(exitCode) {
       if (exitCode === 0) root.restoreCache(cacheOutput.text)
@@ -608,16 +554,15 @@ BarWidget {
     onExited: function(exitCode) { root.applyWeeks(exitCode, weekOutput.text) }
   }
 
-  // Asked once. The answer decides how weeks are read, and a missing or too
-  // old CLI is said plainly in the panel rather than shown as empty days.
+  // Check that gws can use the configured Google account. Connection errors
+  // are displayed without discarding restored events.
   Process {
-    id: versionProcess
+    id: probeProcess
     running: false
     command: root.backend.probeCommand
     stdout: StdioCollector {
       onStreamFinished: {
         var probed = root.backend.probe(text)
-        root.backendVersion = probed.version
         root.backendMode = probed.mode
         root.backendChecked = true
         if (root.backendMode === "") {
@@ -643,61 +588,11 @@ BarWidget {
   }
 
   Process {
-    id: timeTrackProcess
-    running: false
-    command: root.backend.currentTrackCommand
-    stdout: StdioCollector {
-      onStreamFinished: {
-        var parsed = Cal.parseCurrentTrack(text)
-        if (parsed !== undefined) root.timeTrack = parsed
-      }
-    }
-  }
-
-  Process {
-    id: timeTracksProcess
-    running: false
-    command: root.backend.tracksCommand
-    stdout: StdioCollector {
-      onStreamFinished: root.applyTimeTracks(text)
-    }
-  }
-
-  Process {
     id: writeProcess
     running: false
     command: []
     stdout: StdioCollector { id: writeOutput; waitForEnd: true }
     onExited: function(exitCode) { root.finishWrite(exitCode, writeOutput.text) }
-  }
-
-  // ---- Live sync, for backends that can stream their changes (HEY: `hey
-  //      watch`). Any change re-reads what is on screen, debounced so a burst of edits costs one fetch. The polling
-  //      timer above stays as the fallback for when the watch is down.
-  Timer {
-    id: changeDebounce
-    interval: 1500
-    onTriggered: root.refreshCalendar(true)
-  }
-
-  Process {
-    id: watchProcess
-    running: root.liveSync && root.capabilities.watch && root.backendMode !== ""
-    command: root.backend.watchCommand
-    stdout: SplitParser {
-      onRead: function(line) {
-        if (root.backend.isWatchChange(line)) changeDebounce.restart()
-      }
-    }
-    // A watch that dies (signed out, network gone, CLI upgraded under it)
-    // is restarted after a pause rather than in a tight loop.
-    onExited: if (root.liveSync && root.capabilities.watch && root.backendMode !== "") watchRestart.restart()
-  }
-
-  Timer {
-    id: watchRestart
-    interval: 60000
-    onTriggered: if (root.liveSync && root.capabilities.watch && root.backendMode !== "" && !watchProcess.running) watchProcess.running = true
   }
 
   Loader {

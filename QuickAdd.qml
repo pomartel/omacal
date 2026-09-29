@@ -4,17 +4,14 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import "Calendar.js" as Cal
-import "backends/Hey.js" as Hey
 import "backends/Google.js" as Google
 
 // The quick-add card: the calendar panel's new-event form on its own, in
 // the middle of the screen, a shortcut away (Alt+Shift+Space by default).
 // The same EventForm, so it is the same experience as the panel's + button.
 //
-// It talks to the HEY CLI itself rather than through the bar widget, so it
-// works on a screen without a bar. The widget sees the new event through its
-// live sync, and remembers the calendar used last through the same
-// `lastCalendarId` setting.
+// It talks to Google directly so it works on a screen without a bar. The
+// calendar refresh picks up new events and keeps the lastCalendarId setting.
 Item {
   id: root
 
@@ -30,16 +27,14 @@ Item {
   property string backendMode: ""
   readonly property var backend: {
     var entry = widgetEntry() || {}
-    return entry.backend === "google"
-      ? Google.configured(decodeURIComponent(String(Qt.resolvedUrl("backends/google.py")).replace(/^file:\/\//, "")), String(entry.googleAccount || ""))
-      : Hey
+    return Google.configured(decodeURIComponent(String(Qt.resolvedUrl("backends/google.py")).replace(/^file:\/\//, "")), String(entry.googleAccount || ""))
   }
 
   function open(payload) {
     root.error = ""
     root.opened = true
     if (!calendarsProcess.running) calendarsProcess.running = true
-    if (root.backendMode === "" && !versionProcess.running) versionProcess.running = true
+    if (root.backendMode === "" && !probeProcess.running) probeProcess.running = true
     Qt.callLater(function() { form.reset() })
   }
 
@@ -109,7 +104,7 @@ Item {
   }
 
   Process {
-    id: versionProcess
+    id: probeProcess
     running: false
     command: root.backend.probeCommand
     stdout: StdioCollector {

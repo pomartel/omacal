@@ -97,7 +97,7 @@ def writable(calendar):
 
 def project_calendar(calendar):
     return {"id": calendar["id"], "name": calendar.get("summaryOverride") or calendar.get("summary", ""),
-            "color": calendar.get("backgroundColor", ""), "owned": writable(calendar), "kind": ""}
+            "color": calendar.get("backgroundColor", ""), "owned": writable(calendar)}
 
 
 def instant(value, zone):

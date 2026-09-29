@@ -7,15 +7,13 @@ function configured(helperPath, account) {
     return args
   }
   return {
-    info: { id: "google", name: "Google Agenda", capabilities: {
-      create: true, delete: true, watch: false, timeTracking: false, dayLink: true
-    } },
+    info: { id: "google", name: "Google Agenda" },
     cacheCommand: command("cache"),
     probeCommand: command("probe"),
     probe: probe,
     readError: readError,
     modeNote: function() { return "Les calendriers sélectionnés dans l’application Web Google sont affichés. Les modifications sont récupérées à chaque actualisation." },
-    fetchCommand: function(mode, weeks) { return command("events", weeks) },
+    fetchCommand: function(weeks) { return command("events", weeks) },
     calendarsCommand: command("calendars"),
     createCommand: function(request) { return command("create", request) },
     deleteCommand: function(event) {
@@ -23,18 +21,17 @@ function configured(helperPath, account) {
       return command("delete", { calendarId: event.calendarId, id: event.seriesId })
     },
     writeResult: writeResult,
-    dayUrl: function(day) { return dayUrl(day) + "?authuser=" + encodeURIComponent(String(account || "")) },
-    watchCommand: [], currentTrackCommand: [], tracksCommand: []
+    dayUrl: function(day) { return dayUrl(day) + "?authuser=" + encodeURIComponent(String(account || "")) }
   }
 }
 
 function probe(output) {
   try {
     var value = JSON.parse(String(output || ""))
-    if (value.ok === true) return { mode: "google", version: "", error: "" }
-    if (value.error) return { mode: "", version: "", error: String(value.error) }
+    if (value.ok === true) return { mode: "google", error: "" }
+    if (value.error) return { mode: "", error: String(value.error) }
   } catch (e) {}
-  return { mode: "", version: "", error: "Impossible de démarrer Google Agenda. Installez python3 et gws, puis exécutez gws auth login." }
+  return { mode: "", error: "Impossible de démarrer Google Agenda. Installez python3 et gws, puis exécutez gws auth login." }
 }
 
 function readError(output) {

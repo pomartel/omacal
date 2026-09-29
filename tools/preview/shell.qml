@@ -46,64 +46,59 @@ ShellRoot {
   }
 
   readonly property var sampleEvents: Cal.normalizeEvents([
-    allDay(1, "Sam's birthday", "Family", "red", 0),
-    timed(2, "Team standup", "Work", "blue", 0, 9, 30, 15),
-    timed(3, "Design review: onboarding", "Work", "blue", 0, 11, 0, 90, { location: "Studio 3" }),
-    timed(4, "Lunch with Maya", "Friends", "gold", 0, 13, 0, 60, { location: "Café Luna" }),
-    timed(5, "Climbing", "Health", "green", 0, 18, 30, 90, { location: "Boulderhalle" }),
-    timed(6, "Team standup", "Work", "blue", 1, 9, 30, 15),
-    timed(7, "Dentist", "Health", "green", 1, 16, 0, 45),
-    timed(8, "Team standup", "Work", "blue", 2, 9, 30, 15),
-    timed(9, "Book club", "Friends", "gold", 2, 19, 0, 120),
-    timed(10, "Quarterly planning", "Work", "blue", 3, 10, 0, 180),
-    timed(11, "Dinner at Nonna's", "Family", "red", 3, 19, 30, 120),
-    timed(12, "Yoga", "Health", "green", 4, 8, 0, 60),
-    timed(13, "Flight BER → LIS", "Travel", "teal", 5, 7, 40, 225),
-    allDay(14, "Lisbon", "Travel", "teal", 5, 3),
-    timed(15, "Tram 28 and pastéis", "Friends", "gold", 6, 11, 0, 120),
-    timed(16, "Flight LIS → BER", "Travel", "teal", 7, 18, 5, 215),
-    timed(17, "Team standup", "Work", "blue", -3, 9, 30, 15),
-    timed(18, "Launch retro", "Work", "blue", -3, 15, 0, 60),
-    timed(19, "Run", "Health", "green", -2, 7, 0, 45),
-    allDay(20, "Mum visiting", "Family", "red", -6, 2),
-    timed(21, "Climbing", "Health", "green", -5, 18, 30, 120),
-    timed(22, "Concert: The Blue Hours", "Friends", "gold", -8, 20, 0, 150),
-    timed(23, "1:1 with Priya", "Work", "blue", 8, 14, 0, 30),
-    timed(24, "Team standup", "Work", "blue", 9, 9, 30, 15),
-    timed(25, "Pottery class", "Hobbies", "purple", 9, 18, 0, 120),
-    timed(26, "Pottery class", "Hobbies", "purple", 2, 18, 0, 120),
-    timed(27, "Haircut", "Personal", "brown", 10, 12, 0, 45),
-    timed(28, "Pottery class", "Hobbies", "purple", -5, 18, 0, 120),
-    timed(29, "Board game night", "Friends", "gold", 11, 19, 0, 180),
-    timed(30, "Design review: settings", "Work", "blue", 11, 11, 0, 60),
-    timed(31, "Team standup", "Work", "blue", -10, 9, 30, 15),
-    timed(32, "Pottery class", "Hobbies", "purple", -12, 18, 0, 120),
-    allDay(33, "Berlin half marathon", "Health", "green", -13),
-    timed(34, "Brunch with the Kims", "Friends", "gold", -14, 11, 0, 120),
-    timed(35, "Sprint demo", "Work", "blue", -17, 16, 0, 60),
-    timed(36, "Parents' anniversary dinner", "Family", "red", -19, 19, 0, 150),
-    timed(37, "Yoga", "Health", "green", -20, 8, 0, 60),
-    timed(38, "Team offsite", "Work", "blue", -22, 9, 0, 480),
-    timed(39, "Picnic at Tempelhof", "Friends", "gold", -23, 13, 0, 180),
-    timed(40, "Car service", "Personal", "brown", -25, 8, 30, 60),
-    timed(41, "Climbing", "Health", "green", -26, 18, 30, 120),
-    timed(42, "Team standup", "Work", "blue", -24, 9, 30, 15)
+    allDay(1, "Sam's birthday", "Family", "#fe9a99", 0),
+    timed(2, "Team standup", "Work", "#6baffc", 0, 9, 30, 15),
+    timed(3, "Design review: onboarding", "Work", "#6baffc", 0, 11, 0, 90, { location: "Studio 3" }),
+    timed(4, "Lunch with Maya", "Friends", "#f6da93", 0, 13, 0, 60, { location: "Café Luna" }),
+    timed(5, "Climbing", "Health", "#a9e8a0", 0, 18, 30, 90, { location: "Boulderhalle" }),
+    timed(6, "Team standup", "Work", "#6baffc", 1, 9, 30, 15),
+    timed(7, "Dentist", "Health", "#a9e8a0", 1, 16, 0, 45),
+    timed(8, "Team standup", "Work", "#6baffc", 2, 9, 30, 15),
+    timed(9, "Book club", "Friends", "#f6da93", 2, 19, 0, 120),
+    timed(10, "Quarterly planning", "Work", "#6baffc", 3, 10, 0, 180),
+    timed(11, "Dinner at Nonna's", "Family", "#fe9a99", 3, 19, 30, 120),
+    timed(12, "Yoga", "Health", "#a9e8a0", 4, 8, 0, 60),
+    timed(13, "Flight BER → LIS", "Travel", "#aefbec", 5, 7, 40, 225),
+    allDay(14, "Lisbon", "Travel", "#aefbec", 5, 3),
+    timed(15, "Tram 28 and pastéis", "Friends", "#f6da93", 6, 11, 0, 120),
+    timed(16, "Flight LIS → BER", "Travel", "#aefbec", 7, 18, 5, 215),
+    timed(17, "Team standup", "Work", "#6baffc", -3, 9, 30, 15),
+    timed(18, "Launch retro", "Work", "#6baffc", -3, 15, 0, 60),
+    timed(19, "Run", "Health", "#a9e8a0", -2, 7, 0, 45),
+    allDay(20, "Mum visiting", "Family", "#fe9a99", -6, 2),
+    timed(21, "Climbing", "Health", "#a9e8a0", -5, 18, 30, 120),
+    timed(22, "Concert: The Blue Hours", "Friends", "#f6da93", -8, 20, 0, 150),
+    timed(23, "1:1 with Priya", "Work", "#6baffc", 8, 14, 0, 30),
+    timed(24, "Team standup", "Work", "#6baffc", 9, 9, 30, 15),
+    timed(25, "Pottery class", "Hobbies", "#cdb6fb", 9, 18, 0, 120),
+    timed(26, "Pottery class", "Hobbies", "#cdb6fb", 2, 18, 0, 120),
+    timed(27, "Haircut", "Personal", "#dcc1a0", 10, 12, 0, 45),
+    timed(28, "Pottery class", "Hobbies", "#cdb6fb", -5, 18, 0, 120),
+    timed(29, "Board game night", "Friends", "#f6da93", 11, 19, 0, 180),
+    timed(30, "Design review: settings", "Work", "#6baffc", 11, 11, 0, 60),
+    timed(31, "Team standup", "Work", "#6baffc", -10, 9, 30, 15),
+    timed(32, "Pottery class", "Hobbies", "#cdb6fb", -12, 18, 0, 120),
+    allDay(33, "Berlin half marathon", "Health", "#a9e8a0", -13),
+    timed(34, "Brunch with the Kims", "Friends", "#f6da93", -14, 11, 0, 120),
+    timed(35, "Sprint demo", "Work", "#6baffc", -17, 16, 0, 60),
+    timed(36, "Parents' anniversary dinner", "Family", "#fe9a99", -19, 19, 0, 150),
+    timed(37, "Yoga", "Health", "#a9e8a0", -20, 8, 0, 60),
+    timed(38, "Team offsite", "Work", "#6baffc", -22, 9, 0, 480),
+    timed(39, "Picnic at Tempelhof", "Friends", "#f6da93", -23, 13, 0, 180),
+    timed(40, "Car service", "Personal", "#dcc1a0", -25, 8, 30, 60),
+    timed(41, "Climbing", "Health", "#a9e8a0", -26, 18, 30, 120),
+    timed(42, "Team standup", "Work", "#6baffc", -24, 9, 30, 15)
   ])
 
   readonly property var sampleCalendars: [
-    { id: 1, name: "Work", color: "blue", kind: "normal", owned: true },
-    { id: 2, name: "Family", color: "red", kind: "normal", owned: true },
-    { id: 3, name: "Friends", color: "gold", kind: "normal", owned: true },
-    { id: 4, name: "Health", color: "green", kind: "normal", owned: true },
-    { id: 5, name: "Travel", color: "teal", kind: "normal", owned: true },
-    { id: 6, name: "Hobbies", color: "purple", kind: "normal", owned: true },
-    { id: 7, name: "Personal", color: "brown", kind: "normal", owned: true }
+    { id: 1, name: "Work", color: "#6baffc", owned: true },
+    { id: 2, name: "Family", color: "#fe9a99", owned: true },
+    { id: 3, name: "Friends", color: "#f6da93", owned: true },
+    { id: 4, name: "Health", color: "#a9e8a0", owned: true },
+    { id: 5, name: "Travel", color: "#aefbec", owned: true },
+    { id: 6, name: "Hobbies", color: "#cdb6fb", owned: true },
+    { id: 7, name: "Personal", color: "#dcc1a0", owned: true }
   ]
-
-  readonly property var sampleTracks: Cal.parseTimeTracks(JSON.stringify([
-    { id: 1, name: "Writing", named: true, starts_at: at(0, 8, 0), ends_at: at(0, 9, 10) },
-    { id: 2, name: "Client calls", named: true, starts_at: at(0, 14, 30), ends_at: at(0, 15, 15) }
-  ]))
 
   // ---- Stand-ins for the bar and for BarWidget's calendar state.
   QtObject {
@@ -132,31 +127,21 @@ ShellRoot {
     property var byDay: Cal.indexByDay(shell.sampleEvents)
     property var calendars: shell.sampleCalendars
     property var writableCalendars: shell.sampleCalendars
-    property var timeTrack: null
-    property var timeTracks: shell.sampleTracks
-    property var tracksByDay: Cal.tracksByDay(shell.sampleTracks)
-    property string renameTrackId: ""
     property bool writing: false
     property string writeError: ""
     property string lastError: ""
     property bool loaded: true
     property bool loading: false
-    property string backendMode: "week"
-    property string backendName: "HEY"
-    property string backendVersion: "1.7.0"
-    property var capabilities: ({ create: true, delete: true, watch: true, timeTracking: true, dayLink: true })
+    property string backendMode: "google"
+    property string backendName: "Google Agenda"
     signal writeFinished(bool ok, string message)
     function showWeeks(keys) {}
     function refreshCalendar(force) {}
     function dayUrl(key) { return "" }
-    function modeNote() { return "Calendars switched off in HEY are already left out." }
+    function modeNote() { return "Calendars selected in Google Agenda are displayed." }
     function openUrl(url) {}
     function addEvent(form) { return false }
     function deleteEvent(event, key) { return false }
-    function startTimeTrack() {}
-    function stopTimeTrack() {}
-    function renameTimeTrack(id, name) {}
-    function deleteTimeTrack(id) {}
   }
 
   // A bar-shaped strip across the top of the screen, holding the anchor the
