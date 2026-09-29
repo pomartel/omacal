@@ -78,20 +78,20 @@ function formatVersion(version) {
 function probe(output) {
   var text = String(output || "").replace(/^\s+|\s+$/g, "")
   if (text === "")
-    return { mode: "", version: "", error: "The HEY CLI is not installed. Install hey-cli and run `hey setup`." }
+    return { mode: "", version: "", error: "L’outil HEY n’est pas installé. Installez hey-cli, puis exécutez `hey setup`." }
   var version = parseCliVersion(text)
   if (version === null) return { mode: "week", version: "", error: "" }
   if (compareVersions(version, minimumCliVersion) < 0)
     return { mode: "", version: formatVersion(version),
-      error: "hey-cli " + formatVersion(version) + " is too old. OmaCal needs " + formatVersion(minimumCliVersion) + " or newer." }
+      error: "hey-cli " + formatVersion(version) + " est trop ancien. OmaCal nécessite la version " + formatVersion(minimumCliVersion) + " ou plus récente." }
   return { mode: compareVersions(version, weekViewCliVersion) < 0 ? "list" : "week", version: formatVersion(version), error: "" }
 }
 
 // A note for the settings, about what this CLI can and cannot see.
 function modeNote(mode, version) {
   return mode === "list"
-    ? "hey-cli " + version + " cannot see which calendars are switched off in HEY, so hide them here."
-    : "Calendars switched off in HEY are already left out."
+    ? "hey-cli " + version + " ne détecte pas les calendriers désactivés dans HEY ; masquez-les ici."
+    : "Les calendriers désactivés dans HEY sont déjà exclus."
 }
 
 // ---------------------------------------------------------------------------
@@ -106,13 +106,13 @@ var eventProjection = "map({"
   + " occurrence_id: (.occurrence_id // \"\"),"
   + " parent_id: (.parent_id // \"\"),"
   + " recurring: (((.recurrence_schedule // {}) | length) > 0 or .parent_id != null),"
-  + " title: (.title // .summary // \"(untitled)\"),"
+  + " title: (.title // .summary // \"(sans titre)\"),"
   + " all_day: (.all_day // false),"
   + " starts_at: (.starts_at // \"\"),"
   + " ends_at: (.ends_at // \"\"),"
   + " location: (.location // \"\"),"
   + " calendar_id: (.calendar.id // 0),"
-  + " calendar: (.calendar.name // \"Personal\"),"
+  + " calendar: (.calendar.name // \"Personnel\"),"
   + " color: (.calendar.color // \"\"),"
   + " join_url: (.join_link.url // \"\"),"
   + " join_title: (.join_link.title // \"\"),"
@@ -251,7 +251,7 @@ function writeResult(exitCode, stdout) {
   if (parsed && parsed.ok === true) return { ok: true, message: String(parsed.summary || "") }
   var message = parsed ? String(parsed.error || parsed.summary || "") : ""
   if (message === "")
-    message = exitCode === 124 ? "HEY took too long to answer." : "HEY did not accept that (exit " + exitCode + ")."
+    message = exitCode === 124 ? "HEY a mis trop de temps à répondre." : "HEY a refusé l’opération (code " + exitCode + ")."
   return { ok: false, message: message }
 }
 

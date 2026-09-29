@@ -113,6 +113,12 @@ ShellRoot {
           if (keep.indexOf(widget.queuedWeeks[q]) === -1) throw new Error("Obsolete month still queued")
         return
       }
+      for (var monthIndex = 0; monthIndex < 12; monthIndex++) {
+        var frenchDay = Cal.keyForDate(new Date(2027, monthIndex, 15))
+        if (Cal.parseDay(form.dayText(frenchDay), "2026-09-28") !== frenchDay)
+          throw new Error("French form date did not round-trip: " + form.dayText(frenchDay))
+      }
+      if (calendarPanel.weekdayLabel(1) !== "LUN.") throw new Error("Weekday is not French")
       var cachedCount = widget.events.length
       widget.applyWeeks(1, '{"ok":false,"error":"Invalid week range."}')
       if (widget.lastError !== "Invalid week range.") throw new Error("Backend error was hidden")

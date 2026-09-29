@@ -7,13 +7,13 @@ function configured(helperPath, account) {
     return args
   }
   return {
-    info: { id: "google", name: "Google Calendar", capabilities: {
+    info: { id: "google", name: "Google Agenda", capabilities: {
       create: true, delete: true, watch: false, timeTracking: false, dayLink: true
     } },
     probeCommand: command("probe"),
     probe: probe,
     readError: readError,
-    modeNote: function() { return "Google calendars selected in the web app. Changes are polled at the refresh interval." },
+    modeNote: function() { return "Les calendriers sélectionnés dans l’application Web Google sont affichés. Les modifications sont récupérées à chaque actualisation." },
     fetchCommand: function(mode, weeks) { return command("events", weeks) },
     calendarsCommand: command("calendars"),
     createCommand: function(request) { return command("create", request) },
@@ -33,7 +33,7 @@ function probe(output) {
     if (value.ok === true) return { mode: "google", version: "", error: "" }
     if (value.error) return { mode: "", version: "", error: String(value.error) }
   } catch (e) {}
-  return { mode: "", version: "", error: "Google Calendar could not start. Install python3 and gws, then run gws auth login." }
+  return { mode: "", version: "", error: "Impossible de démarrer Google Agenda. Installez python3 et gws, puis exécutez gws auth login." }
 }
 
 function readError(output) {
@@ -50,7 +50,7 @@ function writeResult(exitCode, output) {
     if (exitCode === 0 && value.ok === true) return { ok: true, message: "" }
     if (value.error) return { ok: false, message: String(value.error) }
   } catch (e) {}
-  return { ok: false, message: "Google Calendar did not confirm the change. Refresh before retrying." }
+  return { ok: false, message: "Google Agenda n’a pas confirmé la modification. Actualisez avant de réessayer." }
 }
 
 function dayUrl(day) {

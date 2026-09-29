@@ -85,7 +85,7 @@ function normalizeEvent(raw) {
     seriesId: seriesId,
     occurrenceId: occurrenceId,
     recurring: raw.recurring === true,
-    title: boundedString(raw.title, 256) || "(untitled)",
+    title: boundedString(raw.title, 256) || "(sans titre)",
     allDay: allDay,
     startsAt: startsAt,
     endsAt: boundedString(raw.ends_at, 64) || startsAt,
@@ -230,7 +230,7 @@ function normalizeTimeTrack(raw) {
   return {
     key: "track:" + boundedString(raw.id, 32),
     id: boundedString(raw.id, 32),
-    name: boundedString(raw.name, 256) || "Time track",
+    name: boundedString(raw.name, 256) || "Suivi de temps",
     named: raw.named === true,
     notes: boundedString(raw.notes, 1024),
     allDay: false,
@@ -741,26 +741,26 @@ function barWhen(event, nowMs, hour24) {
   var todayKey = keyForDate(new Date(nowMs))
   if (event.allDay || event.startMs === null) {
     var first = String(event.startsAt).substr(0, 10)
-    if (first <= todayKey) return "today"
+    if (first <= todayKey) return "aujourd’hui"
     return dayWord(first, todayKey)
   }
-  if (isNow(event, nowMs)) return event.endMs !== null ? "until " + formatTime(new Date(event.endMs), hour24) : "now"
+  if (isNow(event, nowMs)) return event.endMs !== null ? "jusqu’à " + formatTime(new Date(event.endMs), hour24) : "maintenant"
   var minutes = Math.max(0, Math.round((event.startMs - nowMs) / 60000))
-  if (minutes === 0) return "now"
-  if (minutes < 60) return "in " + minutes + "m"
+  if (minutes === 0) return "maintenant"
+  if (minutes < 60) return "dans " + minutes + " min"
   var startKey = keyForDate(new Date(event.startMs))
   var time = formatTime(new Date(event.startMs), hour24)
-  if (startKey === todayKey) return "at " + time
+  if (startKey === todayKey) return "à " + time
   var days = daysBetween(todayKey, startKey)
   return days < 7 ? dayWord(startKey, todayKey) + " " + time : dayWord(startKey, todayKey)
 }
 
-var SHORT_WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
-var SHORT_MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+var SHORT_WEEKDAYS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."]
+var SHORT_MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
 
 function dayWord(key, todayKey) {
   var days = daysBetween(todayKey, key)
-  if (days === 1) return "tomorrow"
+  if (days === 1) return "demain"
   var date = dateFromKey(key)
   if (days > 1 && days < 7) return SHORT_WEEKDAYS[date.getDay()]
   return date.getDate() + " " + SHORT_MONTHS[date.getMonth()]
@@ -903,23 +903,23 @@ function dueReminders(events, nowMs, sinceMs, shown) {
   return out
 }
 
-// "In 30 minutes", "Now", "Tomorrow": what a notification leads with.
+// "In 30 minutes", "Maintenant", "Demain": what a notification leads with.
 function reminderLead(event, nowMs) {
   if (!event) return ""
   if (event.allDay) {
     var days = daysBetween(keyForDate(new Date(nowMs)), String(event.startsAt).substr(0, 10))
-    if (days <= 0) return "Today"
-    if (days === 1) return "Tomorrow"
-    return "In " + days + " days"
+    if (days <= 0) return "Aujourd’hui"
+    if (days === 1) return "Demain"
+    return "Dans " + days + " jours"
   }
   var minutes = Math.round((event.startMs - nowMs) / 60000)
-  if (minutes <= 0) return "Now"
-  if (minutes < 60) return "In " + minutes + " min"
+  if (minutes <= 0) return "Maintenant"
+  if (minutes < 60) return "Dans " + minutes + " min"
   var hours = Math.floor(minutes / 60)
   var rest = minutes % 60
-  if (hours < 24) return "In " + hours + " h" + (rest > 0 ? " " + rest + " min" : "")
+  if (hours < 24) return "Dans " + hours + " h" + (rest > 0 ? " " + rest + " min" : "")
   var d = Math.round(hours / 24)
-  return d === 1 ? "Tomorrow" : "In " + d + " days"
+  return d === 1 ? "Demain" : "Dans " + d + " jours"
 }
 
 function notificationBody(event, nowMs, hour24) {
@@ -986,6 +986,21 @@ function matchName(word, names, minimum) {
 function parseDay(value, todayKey) {
   var text = String(value === undefined || value === null ? "" : value)
     .toLowerCase().replace(/[,.]/g, " ").replace(/\s+/g, " ").replace(/^ | $/g, "")
+  // Accept French date input while retaining the original English forms.
+  text = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[’']/g, "")
+  var frenchWords = {
+    aujourdhui: "today", demain: "tomorrow", hier: "yesterday",
+    dimanche: "sunday", dim: "sunday", lundi: "monday", lun: "monday",
+    mardi: "tuesday", mercredi: "wednesday", mer: "wednesday",
+    jeudi: "thursday", jeu: "thursday", vendredi: "friday", ven: "friday", samedi: "saturday", sam: "saturday",
+    janvier: "january", janv: "january", fevrier: "february", fevr: "february",
+    mars: "march", avril: "april", avr: "april", mai: "may", juin: "june",
+    juillet: "july", juil: "july", juill: "july", aout: "august", septembre: "september", sept: "september",
+    octobre: "october", novembre: "november", decembre: "december", dec: "december",
+    dans: "in", jour: "day", jours: "days", j: "d", semaine: "week", semaines: "weeks", sem: "weeks"
+  }
+  text = text.replace(/[a-z]+/g, function(word) { return frenchWords[word] || word })
+  text = text.replace(/^(\w+) prochain$/, "next $1")
   if (!isDayKey(todayKey)) return ""
   if (text === "" || text === "today" || text === "tod") return todayKey
   if (text === "tomorrow" || text === "tmr" || text === "tom") return addDays(todayKey, 1)
@@ -1100,9 +1115,9 @@ var reminderChoices = ["", "10m", "30m", "1h", "1d"]
 function validateEvent(form) {
   var f = form || {}
   var title = String(f.title || "").replace(/^\s+|\s+$/g, "")
-  if (title === "") return { error: "Give the event a title." }
-  if (title.length > 256) return { error: "That title is too long." }
-  if (!isDayKey(f.date)) return { error: "Pick a day." }
+  if (title === "") return { error: "Donnez un titre à l’événement." }
+  if (title.length > 256) return { error: "Le titre est trop long." }
+  if (!isDayKey(f.date)) return { error: "Choisissez une date." }
 
   var request = { title: title, date: f.date, allDay: f.allDay === true, startTime: "", endTime: "",
     endDate: f.date, calendarId: typeof f.calendarId === "string" ? boundedString(f.calendarId, 1024)
@@ -1111,18 +1126,18 @@ function validateEvent(form) {
 
   if (request.allDay) {
     if (f.endDate && f.endDate !== f.date) {
-      if (!isDayKey(f.endDate) || f.endDate < f.date) return { error: "It has to end after it starts." }
+      if (!isDayKey(f.endDate) || f.endDate < f.date) return { error: "La fin doit être après le début." }
       request.endDate = f.endDate
     }
   } else {
     var start = parseClock(f.startTime)
-    if (start === "") return { error: "The start time is not a time." }
+    if (start === "") return { error: "L’heure de début est invalide." }
     request.startTime = start
     var endText = String(f.endTime || "").replace(/\s+/g, "")
     if (endText !== "") {
       var end = parseClock(endText)
-      if (end === "") return { error: "The end time is not a time." }
-      if (clockMinutes(end) === clockMinutes(start)) return { error: "It has to end after it starts." }
+      if (end === "") return { error: "L’heure de fin est invalide." }
+      if (clockMinutes(end) === clockMinutes(start)) return { error: "La fin doit être après le début." }
       // An end before the start is read as the next morning, the way you
       // mean "22:00 to 01:00".
       if (clockMinutes(end) < clockMinutes(start)) request.endDate = addDays(f.date, 1)
@@ -1152,7 +1167,7 @@ function formatTime(date, hour24) {
 
 function eventRangeLabel(event, hour24) {
   if (!event) return ""
-  if (event.allDay) return "All day"
+  if (event.allDay) return "Toute la journée"
   if (event.startMs === null) return ""
   var start = formatTime(new Date(event.startMs), hour24)
   if (event.endMs === null || event.endMs <= event.startMs) return start
@@ -1160,14 +1175,14 @@ function eventRangeLabel(event, hour24) {
 }
 
 // What the day view prints above a title. A multi-day event names the part
-// of it this day holds: "from 09:00", "until 10:00", or "all day".
+// of it this day holds: "from 09:00", "until 10:00", or "toute la journée".
 function eventTimeOnDay(event, dayKey, hour24) {
   if (!event) return ""
   if (event.allDay) return ""
   switch (spanPosition(event, dayKey)) {
-  case "first": return "from " + formatTime(new Date(event.startMs), hour24)
-  case "last": return "until " + formatTime(new Date(event.endMs), hour24)
-  case "middle": return "all day"
+  case "first": return "à partir de " + formatTime(new Date(event.startMs), hour24)
+  case "last": return "jusqu’à " + formatTime(new Date(event.endMs), hour24)
+  case "middle": return "toute la journée"
   default: return eventRangeLabel(event, hour24)
   }
 }
@@ -1180,14 +1195,14 @@ function durationLabel(ms) {
   return hours + " h" + (rest > 0 ? " " + pad2(rest) : "")
 }
 
-// "Today", "Tomorrow", "Yesterday", or how far away it is.
+// "Aujourd’hui", "Demain", "Hier", or how far away it is.
 function relativeDayLabel(dayKey, todayKey) {
   var delta = daysBetween(todayKey, dayKey)
-  if (delta === 0) return "Today"
-  if (delta === 1) return "Tomorrow"
-  if (delta === -1) return "Yesterday"
-  if (delta > 1) return "In " + delta + " days"
-  return (-delta) + " days ago"
+  if (delta === 0) return "Aujourd’hui"
+  if (delta === 1) return "Demain"
+  if (delta === -1) return "Hier"
+  if (delta > 1) return "Dans " + delta + " jours"
+  return (-delta) + " jours plus tôt"
 }
 
 // External calendars come through as the address they were subscribed from.

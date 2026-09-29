@@ -88,7 +88,7 @@ Item {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: root.track ? (root.track.named ? root.track.name : root.track.name + " · click to name") : ""
+        text: root.track ? (root.track.named ? root.track.name : root.track.name + " · cliquer pour nommer") : ""
         color: root.track && root.track.named ? root.foreground : Qt.darker(root.foreground, 1.6)
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -102,7 +102,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        placeholderText: "What was this? Enter saves"
+        placeholderText: "Quelle activité ? Entrée pour enregistrer"
         foreground: root.foreground
         font.family: root.fontFamily
         verticalPadding: Style.space(3)
@@ -161,7 +161,7 @@ Item {
 
     PanelToolTip {
       visible: rowMouse.containsMouse && !deleteMouse.containsMouse && !!root.track
-      text: root.track ? (root.track.named ? "Click to rename" : "Click to name this track")
+      text: root.track ? (root.track.named ? "Cliquer pour renommer" : "Cliquer pour nommer cette activité")
         + (root.track.notes !== "" ? "\n" + root.track.notes : "") : ""
       fontFamily: root.fontFamily
     }
@@ -178,7 +178,7 @@ Item {
       width: parent.width - keepButton.width - removeButton.width - parent.spacing * 2
       anchors.verticalCenter: parent.verticalCenter
       textFormat: Text.PlainText
-      text: root.busy ? "Deleting…" : "Delete this time track?"
+      text: root.busy ? "Suppression…" : "Supprimer ce suivi de temps ?"
       color: root.foreground
       font.family: root.fontFamily
       font.pixelSize: Style.font.body
@@ -188,7 +188,7 @@ Item {
     Button {
       id: keepButton
       anchors.verticalCenter: parent.verticalCenter
-      text: "Keep"
+      text: "Conserver"
       enabled: !root.busy
       foreground: root.foreground
       fontFamily: root.fontFamily
@@ -200,7 +200,7 @@ Item {
     Button {
       id: removeButton
       anchors.verticalCenter: parent.verticalCenter
-      text: "Delete"
+      text: "Supprimer"
       enabled: !root.busy
       bordered: true
       foreground: root.foreground

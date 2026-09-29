@@ -5,7 +5,7 @@
   "version": "1.0.1",
   "author": "Carmine Paolino",
   "license": "MIT",
-  "description": "Omarchy's stock clock and calendar with your calendar laid over it: per-calendar event chips on the month grid, a day view, new events from the panel or a quick-add shortcut, reminders as notifications, the next event in the bar, and time tracking. Supports HEY and Google Calendar through gws.",
+  "description": "Horloge et calendrier en français : événements, rappels, ajout rapide et suivi du temps. Compatible avec HEY et Google Agenda via gws.",
   "kinds": [
     "service",
     "bar-widget",
@@ -18,7 +18,7 @@
   },
   "barWidget": {
     "displayName": "OmaCal",
-    "description": "The stock date/time label and calendar popup, with your calendar in it.",
+    "description": "Horloge et calendrier avec vos événements, en français.",
     "category": "Time",
     "aliases": [
       "calendar",
@@ -44,20 +44,23 @@
       {
         "key": "backend",
         "type": "enum",
-        "label": "Calendar service (restart shell after changing)",
-        "options": ["hey", "google"],
+        "label": "Service de calendrier (redémarrer le shell après modification)",
+        "options": [
+          "hey",
+          "google"
+        ],
         "defaultValue": "hey"
       },
       {
         "key": "googleAccount",
         "type": "string",
-        "label": "Google account email (must match gws auth status)",
+        "label": "Adresse Google (doit correspondre à gws auth status)",
         "defaultValue": ""
       },
       {
         "key": "barEvent",
         "type": "enum",
-        "label": "Event in the bar",
+        "label": "Événement dans la barre",
         "options": [
           "soon",
           "name",
@@ -66,55 +69,55 @@
           "off"
         ],
         "defaultValue": "soon",
-        "description": "\"soon\" shows an event's name and when, from its earliest reminder until it ends. \"name\" and \"time\" show only one of the two. \"next\" always shows today's next event. \"off\" shows only the calendar glyph."
+        "description": "« soon » : nom et heure, du premier rappel jusqu’à la fin. « name » ou « time » : nom ou heure seulement. « next » : prochain événement d’aujourd’hui. « off » : horloge seule avec icône de rappel."
       },
       {
         "key": "notifications",
         "type": "boolean",
-        "label": "Show calendar reminders as notifications",
+        "label": "Afficher les rappels dans les notifications",
         "defaultValue": true,
-        "description": "Uses event reminders. Google uses popup reminders, including calendar defaults."
+        "description": "Utilise les rappels des événements. Google utilise les rappels contextuels, y compris ceux définis par défaut dans le calendrier."
       },
       {
         "key": "quickAddShortcut",
         "type": "string",
-        "label": "Quick add shortcut",
+        "label": "Raccourci d’ajout rapide",
         "defaultValue": "ALT + SHIFT + SPACE",
-        "description": "Opens the new-event card from anywhere. Leave empty to turn it off. A shortcut already in use is not taken."
+        "description": "Ouvre le formulaire depuis n’importe où. Laissez vide pour désactiver. Les raccourcis déjà utilisés sont conservés."
       },
       {
         "key": "alertLeadMinutes",
         "type": "integer",
-        "label": "Show the calendar icon this many minutes ahead",
+        "label": "Préavis de l’icône du calendrier (minutes)",
         "min": 0,
         "max": 240,
         "step": 5,
         "defaultValue": 15,
-        "description": "The icon appears this long before an event starts and stays until it ends. 0 turns it off."
+        "description": "L’icône apparaît ce nombre de minutes avant le début et reste jusqu’à la fin. 0 désactive le préavis."
       },
       {
         "key": "timeFormat",
         "type": "enum",
-        "label": "Event times",
+        "label": "Format des heures",
         "options": [
           "auto",
           "12",
           "24"
         ],
         "defaultValue": "auto",
-        "description": "\"auto\" follows the system locale."
+        "description": "« auto » suit les paramètres régionaux du système."
       },
       {
         "key": "liveSync",
         "type": "boolean",
-        "label": "Follow HEY changes live",
+        "label": "Synchroniser HEY en direct",
         "defaultValue": true,
-        "description": "Keeps a `hey watch` running so edits made elsewhere show up within seconds."
+        "description": "Garde hey watch actif pour recevoir les modifications faites ailleurs en quelques secondes."
       },
       {
         "key": "refreshIntervalSec",
         "type": "integer",
-        "label": "Refresh interval (seconds)",
+        "label": "Intervalle d’actualisation (secondes)",
         "min": 30,
         "max": 3600,
         "step": 30,
@@ -123,9 +126,9 @@
       {
         "key": "hiddenCalendars",
         "type": "string",
-        "label": "Hidden calendars",
+        "label": "Calendriers masqués",
         "defaultValue": "",
-        "description": "Comma-separated calendar names to leave out. Needed on hey-cli 1.3, which cannot see which calendars are switched off in HEY."
+        "description": "Noms des calendriers à masquer, séparés par des virgules. Nécessaire avec hey-cli 1.3, qui ne détecte pas les calendriers désactivés dans HEY."
       }
     ]
   }

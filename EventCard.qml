@@ -96,7 +96,7 @@ Item {
       id: pillMeta
       textFormat: Text.PlainText
       anchors.verticalCenter: parent.verticalCenter
-      text: root.position === "middle" ? "continues" : Cal.calendarLabel(root.event ? root.event.calendar : "")
+      text: root.position === "middle" ? "suite" : Cal.calendarLabel(root.event ? root.event.calendar : "")
       color: Qt.rgba(0.106, 0.149, 0.196, 0.6)
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
@@ -129,7 +129,7 @@ Item {
       Text {
         visible: root.current
         textFormat: Text.PlainText
-        text: "NOW"
+        text: "EN COURS"
         color: root.ink
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -178,8 +178,8 @@ Item {
         var lines = [Cal.eventRangeLabel(root.event, root.hour24) + " · " + root.event.title]
         if (root.event.calendar !== "") lines.push(root.event.calendar)
         if (root.event.location !== "") lines.push(root.event.location)
-        if (root.event.recurring) lines.push("Repeats")
-        lines.push(root.event.joinUrl !== "" ? (root.event.joinTitle || "Click to join") : "Click to open")
+        if (root.event.recurring) lines.push("Récurrent")
+        lines.push(root.event.joinUrl !== "" ? (root.event.joinTitle || "Cliquer pour rejoindre") : "Cliquer pour ouvrir")
         return lines.join("\n")
       }
     }
@@ -207,7 +207,7 @@ Item {
 
       PanelToolTip {
         visible: deleteMouse.containsMouse
-        text: "Delete event"
+        text: "Supprimer l’événement"
         fontFamily: root.fontFamily
       }
     }
@@ -226,7 +226,7 @@ Item {
       textFormat: Text.PlainText
       width: parent.width - cancelDelete.width - confirmDelete.width - parent.spacing * 2
       anchors.verticalCenter: parent.verticalCenter
-      text: root.busy ? "Deleting…" : "Delete “" + (root.event ? root.event.title : "") + "”?"
+      text: root.busy ? "Suppression…" : "Supprimer « " + (root.event ? root.event.title : "") + " » ?"
       color: root.ink
       font.family: root.fontFamily
       font.pixelSize: Style.font.body
@@ -236,7 +236,7 @@ Item {
     Button {
       id: cancelDelete
       anchors.verticalCenter: parent.verticalCenter
-      text: "Keep"
+      text: "Conserver"
       enabled: !root.busy
       foreground: root.ink
       fontFamily: root.fontFamily
@@ -246,7 +246,7 @@ Item {
     Button {
       id: confirmDelete
       anchors.verticalCenter: parent.verticalCenter
-      text: "Delete"
+      text: "Supprimer"
       enabled: !root.busy
       bordered: true
       foreground: root.ink

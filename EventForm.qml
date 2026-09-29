@@ -67,16 +67,16 @@ Item {
 
   // What the keys do where the focus is, one line under the form.
   readonly property string keyHint: {
-    if (calendarRow.activeFocus) return "←→ calendar · Tab next · Enter add · Esc cancel"
-    if (remindRow.activeFocus) return "←→ reminder · Tab next · Enter add · Esc cancel"
-    if (allDayRow.activeFocus) return "Space all day · Tab next · Enter add · Esc cancel"
-    if (dateField.activeFocus) return "↑↓ day, Shift a week · Tab next · Alt+←→ calendar · Enter add"
-    if (startField.activeFocus || endField.activeFocus) return "↑↓ 15 min · Tab next · Alt+←→ calendar · Enter add"
-    return "Tab next field · Alt+←→ calendar · Alt+↑↓ reminder · Alt+A all day · Enter add"
+    if (calendarRow.activeFocus) return "←→ calendrier · Tab suivant · Entrée ajouter · Échap annuler"
+    if (remindRow.activeFocus) return "←→ rappel · Tab suivant · Entrée ajouter · Échap annuler"
+    if (allDayRow.activeFocus) return "Espace journée entière · Tab suivant · Entrée ajouter · Échap annuler"
+    if (dateField.activeFocus) return "↑↓ jour, Maj semaine · Tab suivant · Alt+←→ calendrier · Entrée ajouter"
+    if (startField.activeFocus || endField.activeFocus) return "↑↓ 15 min · Tab suivant · Alt+←→ calendrier · Entrée ajouter"
+    return "Tab champ suivant · Alt+←→ calendrier · Alt+↑↓ rappel · Alt+A journée entière · Entrée ajouter"
   }
 
   readonly property string dayLabel: Cal.isDayKey(resolvedDay)
-    ? Qt.formatDate(Cal.dateFromKey(resolvedDay), "dddd d MMMM yyyy")
+    ? Cal.dateFromKey(resolvedDay).toLocaleDateString(Qt.locale("fr_CA"), "dddd d MMMM yyyy")
     : ""
 
   implicitHeight: formColumn.implicitHeight
@@ -109,9 +109,9 @@ Item {
 
   function dayText(day) {
     var today = currentToday()
-    if (day === today) return "today"
-    if (day === Cal.addDays(today, 1)) return "tomorrow"
-    return Qt.formatDate(Cal.dateFromKey(day), "d MMM yyyy")
+    if (day === today) return "aujourd’hui"
+    if (day === Cal.addDays(today, 1)) return "demain"
+    return Cal.dateFromKey(day).toLocaleDateString(Qt.locale("fr_CA"), "d MMM yyyy")
   }
 
   function pickCalendar(preferred) {
@@ -124,7 +124,7 @@ Item {
     if (root.busy) return
     root.localError = ""
     if (!Cal.isDayKey(root.resolvedDay)) {
-      root.localError = "“" + dateField.text + "” is not a day I know. Try fri, tomorrow or 3 oct."
+      root.localError = "Date inconnue : « " + dateField.text + " ». Essayez vendredi, demain ou 3 oct."
       return
     }
     root.submitted({
@@ -213,7 +213,7 @@ Item {
 
     Text {
       textFormat: Text.PlainText
-      text: "NEW EVENT"
+      text: "NOUVEL ÉVÉNEMENT"
       color: Qt.darker(root.foreground, 1.5)
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
@@ -223,7 +223,7 @@ Item {
     TextField {
       id: titleField
       width: parent.width
-      placeholderText: "What's happening?"
+      placeholderText: "Quel est l’événement ?"
       foreground: root.foreground
       font.family: root.fontFamily
       Keys.onPressed: function(event) { root.handleKey(event, titleField) }
@@ -235,7 +235,7 @@ Item {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: "ON"
+        text: "LE"
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -246,7 +246,7 @@ Item {
         id: dateField
         width: Style.space(130)
         anchors.verticalCenter: parent.verticalCenter
-        placeholderText: "today"
+        placeholderText: "aujourd’hui"
         foreground: root.foreground
         font.family: root.fontFamily
         Keys.onPressed: function(event) { root.handleKey(event, dateField) }
@@ -256,7 +256,7 @@ Item {
       Text {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: root.dayLabel !== "" ? root.dayLabel : "Not a day"
+        text: root.dayLabel !== "" ? root.dayLabel : "Date invalide"
         color: root.dayLabel !== "" ? Qt.darker(root.foreground, 1.4) : Color.urgent
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -334,7 +334,7 @@ Item {
         id: allDayButton
         anchors.fill: parent
         hasCursor: allDayRow.activeFocus
-        text: "All day"
+        text: "Toute la journée"
         iconText: root.allDay ? "󰄵" : "󰄱"
         bordered: true
         selected: root.allDay
@@ -349,7 +349,7 @@ Item {
         visible: !root.allDay
         anchors.verticalCenter: parent.verticalCenter
         leftPadding: Style.space(6)
-        text: "FROM"
+        text: "DE"
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -370,7 +370,7 @@ Item {
       Text {
         visible: !root.allDay
         anchors.verticalCenter: parent.verticalCenter
-        text: "TO"
+        text: "À"
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -392,7 +392,7 @@ Item {
     TextField {
       id: locationField
       width: parent.width
-      placeholderText: "Where? (optional)"
+      placeholderText: "Lieu (facultatif)"
       foreground: root.foreground
       font.family: root.fontFamily
       Keys.onPressed: function(event) { root.handleKey(event, locationField) }
@@ -405,7 +405,7 @@ Item {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: "REMIND"
+        text: "RAPPEL"
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -420,11 +420,11 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         focusable: false
         options: [
-          { value: "", label: "None" },
-          { value: "10m", label: "10m" },
-          { value: "30m", label: "30m" },
-          { value: "1h", label: "1h" },
-          { value: "1d", label: "1d" }
+          { value: "", label: "Aucun" },
+          { value: "10m", label: "10 min" },
+          { value: "30m", label: "30 min" },
+          { value: "1h", label: "1 h" },
+          { value: "1d", label: "1 j" }
         ]
         value: root.remind
         // Lights the chosen reminder while the row has the keyboard.
@@ -447,7 +447,7 @@ Item {
         anchors.right: cancelButton.left
         anchors.rightMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        text: root.busy ? "Adding…" : (root.localError !== "" ? root.localError : root.error)
+        text: root.busy ? "Ajout…" : (root.localError !== "" ? root.localError : root.error)
         color: root.busy ? Qt.darker(root.foreground, 1.4) : Color.urgent
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -461,7 +461,7 @@ Item {
         anchors.right: createButton.left
         anchors.rightMargin: Style.space(6)
         anchors.verticalCenter: parent.verticalCenter
-        text: "Cancel"
+        text: "Annuler"
         foreground: root.foreground
         accent: root.accent
         fontFamily: root.fontFamily
@@ -472,7 +472,7 @@ Item {
         id: createButton
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        text: "Add event"
+        text: "Ajouter"
         iconText: "󰐕"
         bordered: true
         enabled: !root.busy

@@ -1,5 +1,11 @@
 # OmaCal
 
+Cette version propose une interface en français canadien : calendrier, formulaires,
+paramètres, aide clavier, rappels et messages d’erreur. Les dates peuvent être saisies
+en français (`aujourd’hui`, `demain`, `vendredi`, `lundi prochain`, `3 février`,
+`dans 2 semaines`) ; les formats anglais restent acceptés. Les raccourcis clavier
+et les identifiants de configuration sont conservés.
+
 Personal fork based on [crmne/omacal PR #2](https://github.com/crmne/omacal/pull/2),
 which adds Google Calendar support through `gws`. Upstream authorship and licenses are preserved.
 

@@ -247,7 +247,7 @@ BarWidget {
     // showing a week that looks clear.
     var detail = failed && typeof root.backend.readError === "function" ? root.backend.readError(stdout) : ""
     root.lastError = failed
-      ? (detail || (exitCode === 0 ? root.backendName + " did not answer. Is its CLI signed in?" : root.backendName + " exited with status " + exitCode + "."))
+      ? (detail || (exitCode === 0 ? root.backendName + " n’a pas répondu. La connexion à son outil en ligne de commande est-elle active ?" : root.backendName + " s’est terminé avec le code " + exitCode + "."))
       : ""
     root.weekCache = cache
     rebuildIndex()
@@ -385,7 +385,7 @@ BarWidget {
   }
 
   function formatted(date) {
-    var locale = Qt.locale(String(setting("locale", "")))
+    var locale = Qt.locale(String(setting("locale", "fr_CA")))
     return date.toLocaleString(locale, activeFormat.replace(/ww/g, Model.isoWeekLiteral(date.getFullYear(), date.getMonth(), date.getDate())))
   }
 
@@ -627,7 +627,7 @@ BarWidget {
     verticalPadding: 8.75
     // The glyph says "something is close"; hovering says what, and when.
     tooltipText: {
-      if (root.lastError !== "") return "HEY: " + root.lastError
+      if (root.lastError !== "") return root.backendName + " : " + root.lastError
       if (!root.loaded) return ""
       if (root.shownEvents.length > 0) {
         var lines = []
@@ -637,9 +637,9 @@ BarWidget {
       }
       if (root.alerting) {
         var minutes = Cal.minutesUntil(root.alertEvent, root.displayDate.getTime())
-        return (minutes <= 0 ? "Now" : "In " + minutes + " min") + " · " + root.alertEvent.title
+        return (minutes <= 0 ? "Maintenant" : "Dans " + minutes + " min") + " · " + root.alertEvent.title
       }
-      if (root.nextEvent) return "Next: " + Cal.eventRangeLabel(root.nextEvent, root.hour24)
+      if (root.nextEvent) return "À venir : " + Cal.eventRangeLabel(root.nextEvent, root.hour24)
         + " · " + root.nextEvent.title
       return ""
     }

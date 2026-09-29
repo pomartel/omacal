@@ -178,10 +178,10 @@ test("occurrences keep their local wall-clock time across DST", function() {
 test("the bar names an event and says when", function() {
   var e = timed(1, "Team sync", 2026, 9, 28, 13, 0, 90)
   var before = e.startMs - 12 * 60000
-  assert.strictEqual(Hey.barEventLabel(e, before, true), "Team sync · in 12m")
-  assert.strictEqual(Hey.barEventLabel(e, e.startMs + 60000, true), "Team sync · until 14:30")
-  assert.strictEqual(Hey.barEventLabel(e, e.startMs - 3 * 3600000, true), "Team sync · at 13:00")
-  assert.strictEqual(Hey.barEventLabel(e, e.startMs - 24 * 3600000, true), "Team sync · tomorrow 13:00")
+  assert.strictEqual(Hey.barEventLabel(e, before, true), "Team sync · dans 12 min")
+  assert.strictEqual(Hey.barEventLabel(e, e.startMs + 60000, true), "Team sync · jusqu’à 14:30")
+  assert.strictEqual(Hey.barEventLabel(e, e.startMs - 3 * 3600000, true), "Team sync · à 13:00")
+  assert.strictEqual(Hey.barEventLabel(e, e.startMs - 24 * 3600000, true), "Team sync · demain 13:00")
 })
 
 test("the bar opens at the earliest reminder, or the lead time without one", function() {
@@ -201,7 +201,7 @@ test("all-day events show from their reminder, never without one", function() {
   assert.deepStrictEqual(Hey.barSelection("soon", [bday], [], eve, 15), [])
   bday.reminders = [new Date(2026, 8, 28, 8, 0).getTime()]
   assert.deepStrictEqual(Hey.barSelection("soon", [bday], [], eve, 15), [bday])
-  assert.strictEqual(Hey.barEventLabel(bday, eve, true), "Lena's bday · tomorrow")
+  assert.strictEqual(Hey.barEventLabel(bday, eve, true), "Lena's bday · demain")
   assert.deepStrictEqual(Hey.barSelection("soon", [bday], [], new Date(2026, 8, 30, 0, 1).getTime(), 15), [])
 })
 
@@ -214,7 +214,7 @@ test("overlaps: about to start beats under way beats coming beats all day", func
   var holiday = allDay(4, "Holiday", "2026-10-01", "2026-10-01", { reminders: ["2026-09-30T08:00:00Z"] })
   var pick = Hey.barSelection("soon", [holiday, later, meeting, soon], [], now, 15)
   assert.deepStrictEqual(pick.map(function(e) { return e.title }), ["Standup", "Meeting", "Lunch", "Holiday"])
-  assert.strictEqual(Hey.barLabel(pick, now, true), "Standup · in 10m  +3")
+  assert.strictEqual(Hey.barLabel(pick, now, true), "Standup · dans 10 min  +3")
   var afterStandup = Hey.barSelection("soon", [meeting, later], [], now + 5 * 60000, 15)
   assert.strictEqual(afterStandup[0].title, "Meeting")
 })
@@ -223,7 +223,7 @@ test("time mode drops the title and keeps the when", function() {
   var e = timed(1, "Secret meeting", 2026, 9, 28, 13, 0, 30)
   var now = e.startMs - 12 * 60000
   var pick = Hey.barSelection("time", [e], [e], now, 15)
-  assert.strictEqual(Hey.barLabel(pick, now, true, "time"), "in 12m")
+  assert.strictEqual(Hey.barLabel(pick, now, true, "time"), "dans 12 min")
 })
 
 test("name mode keeps the title and drops the when", function() {
@@ -253,7 +253,7 @@ test("time tracks are read from the standard shape", function() {
     { id: 1, name: "Writing", named: true, notes: "", starts_at: "2026-09-28T10:00:00Z", ends_at: "2026-09-28T11:00:00Z" },
     { id: 2, name: "", named: false, starts_at: "2026-09-28T12:00:00Z", ends_at: "2026-09-28T12:30:00Z" }
   ]))
-  assert.deepStrictEqual(tracks.map(function(t) { return [t.name, t.named] }), [["Writing", true], ["Time track", false]])
+  assert.deepStrictEqual(tracks.map(function(t) { return [t.name, t.named] }), [["Writing", true], ["Suivi de temps", false]])
   assert.strictEqual(Hey.parseCurrentTrack('{"ok":true,"track":null}'), null)
   assert.strictEqual(Hey.parseCurrentTrack('{"ok":true,"track":{"id":5,"name":"Deep work","starts_at":"2026-09-28T10:00:00Z"}}').title, "Deep work")
   assert.strictEqual(Hey.parseCurrentTrack('{"ok":false}'), undefined)
@@ -266,11 +266,11 @@ test("calendar colors: HEY's names, other services' hex, the accent otherwise", 
 })
 
 test("the HEY backend probes its CLI and says why it cannot run", function() {
-  assert.ok(Backend.probe("").error.indexOf("not installed") !== -1)
-  assert.ok(Backend.probe("hey version 1.2.0").error.indexOf("too old") !== -1)
+  assert.ok(Backend.probe("").error.indexOf("n’est pas installé") !== -1)
+  assert.ok(Backend.probe("hey version 1.2.0").error.indexOf("trop ancien") !== -1)
   assert.strictEqual(Backend.probe("hey version 1.3.0").version, "1.3.0")
   assert.strictEqual(Backend.writeResult(0, '{"ok":true,"summary":"Created"}').ok, true)
-  assert.strictEqual(Backend.writeResult(124, "").message, "HEY took too long to answer.")
+  assert.strictEqual(Backend.writeResult(124, "").message, "HEY a mis trop de temps à répondre.")
 })
 
 // ---- Reminders
@@ -284,7 +284,7 @@ test("due reminders fire once, and never for what came due before start", functi
   var shown = {}
   shown[due[0].key] = now
   assert.strictEqual(Hey.dueReminders([e], now + 15000, now - 60000, shown).length, 0)
-  assert.strictEqual(Hey.reminderLead(e, now), "In 30 min")
+  assert.strictEqual(Hey.reminderLead(e, now), "Dans 30 min")
 })
 
 test("declined events never notify", function() {
@@ -375,3 +375,16 @@ if (failures > 0) {
   process.exit(1)
 }
 console.log("ok [" + tz + "]")
+
+// French date input and labels, including Qt's abbreviated month names.
+for (const [input, expected] of [
+  ["aujourd’hui", "2026-09-28"], ["aujourd'hui", "2026-09-28"],
+  ["demain", "2026-09-29"], ["hier", "2026-09-27"],
+  ["vendredi", "2026-10-02"], ["ven.", "2026-10-02"],
+  ["lundi prochain", "2026-10-05"], ["dans 3 jours", "2026-10-01"],
+  ["dans 2 semaines", "2026-10-12"], ["3 février 2027", "2027-02-03"],
+  ["3 févr. 2027", "2027-02-03"], ["3 août 2027", "2027-08-03"],
+  ["3 mars 2027", "2027-03-03"], ["29 sept. 2026", "2026-09-29"]
+]) assert.equal(Hey.parseDay(input, "2026-09-28"), expected, input)
+assert.equal(Hey.relativeDayLabel("2026-09-28", "2026-09-28"), "Aujourd’hui")
+assert.equal(Hey.relativeDayLabel("2026-09-29", "2026-09-28"), "Demain")

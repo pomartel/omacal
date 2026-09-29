@@ -3,7 +3,7 @@
 // against `hyprctl binds`, and a binding tagged with its own description so
 // this plugin only ever unbinds what it bound.
 var DEFAULT = "ALT + SHIFT + SPACE"
-var DESCRIPTION = "OmaCal quick add"
+var DESCRIPTION = "Ajout rapide OmaCal"
 var COMMAND = "omarchy-shell shell toggle pomartel.omacal"
 var OWNER_GLOBAL = "__omacal_shortcut_owner"
 var MODIFIERS = { SUPER: 64, CTRL: 4, ALT: 8, SHIFT: 1 }
