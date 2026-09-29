@@ -12,6 +12,7 @@ function configured(helperPath, account) {
     } },
     probeCommand: command("probe"),
     probe: probe,
+    readError: readError,
     modeNote: function() { return "Google calendars selected in the web app. Changes are polled at the refresh interval." },
     fetchCommand: function(mode, weeks) { return command("events", weeks) },
     calendarsCommand: command("calendars"),
@@ -33,6 +34,14 @@ function probe(output) {
     if (value.error) return { mode: "", version: "", error: String(value.error) }
   } catch (e) {}
   return { mode: "", version: "", error: "Google Calendar could not start. Install python3 and gws, then run gws auth login." }
+}
+
+function readError(output) {
+  try {
+    var value = JSON.parse(String(output || ""))
+    if (value.ok === false && typeof value.error === "string") return value.error.slice(0, 512)
+  } catch (e) {}
+  return ""
 }
 
 function writeResult(exitCode, output) {

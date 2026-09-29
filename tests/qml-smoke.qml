@@ -44,6 +44,10 @@ ShellRoot {
       if (quickAdd.backend.info.id !== "google") throw new Error("Quick add uses wrong backend")
       if (heyQuickAdd.backend.info.id !== "hey") throw new Error("Default HEY backend changed")
       if (widget.capabilities.watch || widget.capabilities.timeTracking) throw new Error("Wrong capabilities")
+      var cachedCount = widget.events.length
+      widget.applyWeeks(1, '{"ok":false,"error":"Invalid week range."}')
+      if (widget.lastError !== "Invalid week range.") throw new Error("Backend error was hidden")
+      if (widget.events.length !== cachedCount) throw new Error("Fetch error discarded cached events")
       root.submitted = true
       if (!widget.addEvent({title: "Fixture write", date: "2026-09-28", allDay: true,
                            calendarId: form.calendarId})) throw new Error("Write did not start")

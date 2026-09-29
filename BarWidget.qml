@@ -234,8 +234,9 @@ BarWidget {
     // An empty answer is the shape every failure takes here (the CLI is
     // missing, signed out, or offline), so the panel says so rather than
     // showing a week that looks clear.
+    var detail = failed && typeof root.backend.readError === "function" ? root.backend.readError(stdout) : ""
     root.lastError = failed
-      ? (exitCode === 0 ? root.backendName + " did not answer. Is its CLI signed in?" : root.backendName + " exited with status " + exitCode + ".")
+      ? (detail || (exitCode === 0 ? root.backendName + " did not answer. Is its CLI signed in?" : root.backendName + " exited with status " + exitCode + "."))
       : ""
     root.weekCache = cache
     rebuildIndex()
