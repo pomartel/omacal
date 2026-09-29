@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "pomartel.omacal",
   "name": "OmaCal",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Carmine Paolino",
   "license": "MIT",
   "description": "Horloge et calendrier Google Agenda en français : événements, rappels et ajout rapide via gws.",
