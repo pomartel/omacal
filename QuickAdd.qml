@@ -22,7 +22,7 @@ Item {
   property var manifest: null
   property bool opened: false
 
-  readonly property string moduleName: "crmne.omacal"
+  readonly property string moduleName: "pomartel.omacal"
 
   property var calendars: []
   property bool busy: false

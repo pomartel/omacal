@@ -24,8 +24,8 @@ import "Calendar.js" as Cal
 // this panel closed.
 Panel {
   id: root
-  moduleName: "crmne.omacal"
-  ipcTarget: "crmne.omacal"
+  moduleName: "pomartel.omacal"
+  ipcTarget: "pomartel.omacal"
   manageIpc: false
 
   property var anchorItem: null

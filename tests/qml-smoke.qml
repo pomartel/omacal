@@ -17,7 +17,7 @@ ShellRoot {
   Plugin.QuickAdd {
     id: quickAdd
     shell: QtObject {
-      property var barConfig: ({ layout: { center: [{ id: "crmne.omacal", backend: "google", googleAccount: "calendar@example.test" }] } })
+      property var barConfig: ({ layout: { center: [{ id: "pomartel.omacal", backend: "google", googleAccount: "calendar@example.test" }] } })
       function hide(id) {
         if (quickAdd.error !== "" || quickAdd.busy) throw new Error("Quick-add write did not finish")
         console.log("OMACAL_QML_SMOKE_OK")

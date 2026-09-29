@@ -1,5 +1,8 @@
 # OmaCal
 
+Personal fork based on [crmne/omacal PR #2](https://github.com/crmne/omacal/pull/2),
+which adds Google Calendar support through `gws`. Upstream authorship and licenses are preserved.
+
 Omarchy's stock clock and calendar with your calendar laid over it.
 This fork supports [HEY](https://hey.com) and Google Calendar through the
 Google Workspace CLI (`gws`). HEY remains the default.
@@ -11,12 +14,12 @@ Requires Python 3.9 or newer and [gws](https://github.com/googleworkspace/cli)
 if needed, then check `gws auth status` for the account you want to use.
 The plugin uses gws's existing credential storage. It does not store tokens.
 
-Set these fields on the `crmne.omacal` entry in
+Set these fields on the `pomartel.omacal` entry in
 `~/.config/omarchy/shell.json`:
 
 ```json
 {
-  "id": "crmne.omacal",
+  "id": "pomartel.omacal",
   "backend": "google",
   "googleAccount": "you@example.com"
 }
@@ -130,7 +133,7 @@ Review the source first: Omarchy plugins run as unsandboxed code inside the
 shell.
 
 ```bash
-omarchy plugin add https://github.com/crmne/omacal.git --enable
+omarchy plugin add https://github.com/pomartel/omacal.git --enable
 omarchy plugin disable omarchy.clock
 ```
 
@@ -140,11 +143,11 @@ when hover-only widgets appear:
 
 ```jsonc
 // ~/.config/omarchy/shell.json
-{ "bar": { "centerAnchor": "crmne.omacal" } }
+{ "bar": { "centerAnchor": "pomartel.omacal" } }
 ```
 
-Update with `omarchy plugin update crmne.omacal`. Remove with
-`omarchy plugin remove crmne.omacal`, then `omarchy plugin enable
+Update with `omarchy plugin update pomartel.omacal`. Remove with
+`omarchy plugin remove pomartel.omacal`, then `omarchy plugin enable
 omarchy.clock` and set `centerAnchor` back to `omarchy.clock`. Removing it
 touches nothing in your calendar.
 
@@ -246,9 +249,9 @@ omarchy plugin validate .
 
 Plugin code under `~/.config/omarchy/plugins` hot-reloads on save, but not
 through a symlink: when developing from a linked checkout, load changes with
-`omarchy-restart-shell`. `omarchy-shell shell toggle crmne.omacal` opens the
-quick-add card; `omarchy-shell crmne.omacal open` the panel, and
-`omarchy-shell crmne.omacal settings` its settings.
+`omarchy-restart-shell`. `omarchy-shell shell toggle pomartel.omacal` opens the
+quick-add card; `omarchy-shell pomartel.omacal open` the panel, and
+`omarchy-shell pomartel.omacal settings` its settings.
 
 `Model.js` is Omarchy's and stays stock. `Calendar.js` holds the calendar
 model, and `backends/` the services; both run under plain node.

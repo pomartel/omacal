@@ -21,7 +21,7 @@ import "backends/Google.js" as Google
 // service comes through Backend; everything it computes, through Cal.
 BarWidget {
   id: root
-  moduleName: "crmne.omacal"
+  moduleName: "pomartel.omacal"
 
   property date displayDate: clock.date
 
@@ -588,7 +588,7 @@ BarWidget {
   }
 
   IpcHandler {
-    target: "crmne.omacal"
+    target: "pomartel.omacal"
 
     function refresh(): void { root.refresh() }
     function cycleFormat(): void { root.cycleFormat() }

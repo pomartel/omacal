@@ -125,7 +125,7 @@ ShellRoot {
 
   QtObject {
     id: host
-    property var settings: ({ id: "crmne.omacal", barEvent: "soon" })
+    property var settings: ({ id: "pomartel.omacal", barEvent: "soon" })
     property date displayDate: shell.now
     property bool hour24: true
     property var events: shell.sampleEvents
