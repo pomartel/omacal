@@ -552,10 +552,14 @@ BarWidget {
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
 
-  Component.onCompleted: {
+  function initializeCalendar() {
     if (root.backend.cacheCommand) cacheProcess.running = true
-    else refreshCalendar(true)
+    else root.refreshCalendar(true)
   }
+
+  // The bar injects settings in Loader.onLoaded, after Component.onCompleted.
+  // Wait for that injection before choosing the backend and restoring its cache.
+  Component.onCompleted: Qt.callLater(root.initializeCalendar)
 
   SystemClock {
     id: clock
