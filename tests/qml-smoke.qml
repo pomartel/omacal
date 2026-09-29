@@ -6,6 +6,45 @@ import "plugin/Calendar.js" as Cal
 ShellRoot {
   id: root
   property bool submitted: false
+  property bool keysChecked: false
+  Plugin.Panel { id: calendarPanel }
+  function press(key, text, modifiers) {
+    var event = { key: key, text: text || "", modifiers: modifiers || 0, accepted: false }
+    calendarPanel.handleCalendarKey(event)
+    return event.accepted
+  }
+  function checkKeys() {
+    calendarPanel.selectedKey = "2026-01-31"
+    calendarPanel.viewYear = 2026
+    calendarPanel.viewMonth = 0
+    press(Qt.Key_Right)
+    if (calendarPanel.selectedKey !== "2026-02-01" || calendarPanel.viewMonth !== 1) throw new Error("Arrow did not select next day across month")
+    press(Qt.Key_K, "k")
+    if (calendarPanel.selectedKey !== "2026-01-25") throw new Error("K did not select previous week")
+    press(Qt.Key_J, "j")
+    press(Qt.Key_H, "h")
+    press(Qt.Key_L, "l")
+    if (calendarPanel.selectedKey !== "2026-02-01") throw new Error("Vim day/week navigation failed")
+    press(Qt.Key_Right, "", Qt.ControlModifier)
+    if (calendarPanel.viewMonth !== 2) throw new Error("Ctrl+Right did not change month")
+    press(Qt.Key_K, "", Qt.ControlModifier)
+    if (calendarPanel.viewMonth !== 1) throw new Error("Ctrl+K did not change month")
+    press(Qt.Key_BracketRight, "]")
+    press(Qt.Key_BraceRight, "}")
+    if (calendarPanel.viewMonth !== 2 || calendarPanel.viewYear !== 2027) throw new Error("Month/year shortcuts changed")
+    press(Qt.Key_Home)
+    if (calendarPanel.selectedKey !== calendarPanel.todayKey) throw new Error("Home did not return to today")
+    press(Qt.Key_Question, "?")
+    if (!calendarPanel.keyboardHelpVisible) throw new Error("Help did not open")
+    press(Qt.Key_Question, "?")
+    if (calendarPanel.keyboardHelpVisible) throw new Error("Help did not close")
+    calendarPanel.composing = true
+    if (press(Qt.Key_Left) || press(Qt.Key_Question, "?")) throw new Error("Panel intercepted form typing")
+    calendarPanel.composing = false
+    calendarPanel.showingSettings = true
+    if (press(Qt.Key_Home)) throw new Error("Panel intercepted settings typing")
+    calendarPanel.showingSettings = false
+  }
   property bool rangeStarted: false
   property bool navigationStarted: false
   property var rangeWeeks: []
@@ -40,6 +79,7 @@ ShellRoot {
     running: true
     repeat: true
     onTriggered: {
+      if (!root.keysChecked) { root.checkKeys(); root.keysChecked = true }
       if (!widget.loaded || widget.calendars.length === 0 || root.submitted) return
       if (widget.lastError !== "") throw new Error(widget.lastError)
       if (widget.events.length === 0) throw new Error("No fixture events")

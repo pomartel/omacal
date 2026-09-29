@@ -182,17 +182,26 @@ where the focus is.
 
 ### Calendar panel
 
-The stock ones all work: arrows, `[` `]` months, `{` `}` years, `T` today,
-`W` week start. Added:
+Navigation follows Intemporel. Shortcuts are inactive while editing a form or settings.
 
 | Key | Does |
 | --- | --- |
+| `←` `→` or `H` `L` | Previous / next day |
+| `↑` `↓` or `K` `J` | Previous / next week |
+| `Ctrl` + arrows or `H/J/K/L` | Previous / next month |
+| `[` `]` | Previous / next month |
+| `{` `}` | Previous / next year |
+| `Home`, `Enter`, `Space`, or `T` | Return to today |
+| `W` | Change the week's starting day |
+| `?` | Toggle keyboard help |
+| `Tab` / `Shift+Tab` | Next / previous bar panel |
+| `Esc` | Close the panel |
 | `,` `.` | Previous / next day |
 | `<` `>` | Previous / next week |
 | `N` | New event on the selected day |
 | `S` | Settings |
-| `O` | Open the selected day in HEY |
-| `R` | Refresh from HEY |
+| `O` | Open the selected day in the calendar service |
+| `R` | Refresh calendars |
 
 ## Settings
 

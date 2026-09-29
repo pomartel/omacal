@@ -9,9 +9,8 @@ import "Calendar.js" as Cal
 // sit beside the weather panel — same hero-over-detail composition, same
 // spacing scale, same small-caps labels.
 //
-// The grid is a read-out rather than a picker: today is the only marked
-// day, and the only thing that moves is which month is on screen —
-// chevrons, the scroll wheel, and the arrow keys all step it.
+// Arrow keys move the selected day; Ctrl+arrows, chevrons, and the
+// scroll wheel change the displayed month.
 //
 // BarWidget.qml owns the bar label and hands this panel the button to
 // anchor against.
@@ -94,7 +93,42 @@ Panel {
   readonly property bool selectedIsToday: selectedKey === todayKey
   property bool composing: false
   property bool showingSettings: false
+  property bool keyboardHelpVisible: false
   property string deletingKey: ""
+
+  function handleCalendarKey(event) {
+    if (root.editingLife || root.composing || root.renamingTrack || root.showingSettings) return
+    var key = event.key
+    var text = event.text || ""
+    var ctrl = (event.modifiers & Qt.ControlModifier) !== 0
+    var dx = key === Qt.Key_Left || key === Qt.Key_H ? -1
+      : key === Qt.Key_Right || key === Qt.Key_L ? 1 : 0
+    var dy = key === Qt.Key_Up || key === Qt.Key_K ? -1
+      : key === Qt.Key_Down || key === Qt.Key_J ? 1 : 0
+    if (dx !== 0 || dy !== 0) {
+      if (ctrl) root.moveMonth(dx || dy)
+      else root.moveSelection(dx || dy * 7)
+    } else if (key === Qt.Key_Home || key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Space || text.toLowerCase() === "t") root.goToToday()
+    else if (key === Qt.Key_Escape) root.close()
+    else if (key === Qt.Key_Tab || key === Qt.Key_Backtab)
+      root.switchPanel((event.modifiers & Qt.ShiftModifier) || key === Qt.Key_Backtab ? -1 : 1)
+    else if (text === "?") root.keyboardHelpVisible = !root.keyboardHelpVisible
+    else if (text === "[") root.moveMonth(-1)
+    else if (text === "]") root.moveMonth(1)
+    else if (text === "{") root.moveYear(-1)
+    else if (text === "}") root.moveYear(1)
+    else if (text.toLowerCase() === "w") root.toggleWeekStart()
+    else if (text.toLowerCase() === "n") root.newEvent()
+    else if (text.toLowerCase() === "s") root.openSettings()
+    else if (text.toLowerCase() === "r") root.refreshCalendar()
+    else if (text.toLowerCase() === "o") root.openSelectedDay()
+    else if (text === ",") root.moveSelection(-1)
+    else if (text === ".") root.moveSelection(1)
+    else if (text === "<") root.moveSelection(-7)
+    else if (text === ">") root.moveSelection(7)
+    else return
+    event.accepted = true
+  }
 
   function openSettings() {
     root.composing = false
@@ -397,33 +431,12 @@ Panel {
     contentWidth: panel.fittedContentWidth(Style.space(560))
     contentHeight: panel.fittedContentHeight(calendarColumn.implicitHeight)
 
-    PanelKeyCatcher {
+    Item {
       id: keyCatcher
       anchors.fill: parent
-      blocked: root.editingLife || root.composing || root.renamingTrack || root.showingSettings
-      onMoveRequested: function(dx, dy) {
-        if (dx !== 0) root.moveMonth(dx)
-        if (dy !== 0) root.moveYear(dy)
-      }
-      onActivateRequested: root.goToToday()
-      onCloseRequested: root.close()
-      onTabRequested: function(direction) { root.switchPanel(direction) }
-      onTextKey: function(t) {
-        if (t === "[") root.moveMonth(-1)
-        else if (t === "]") root.moveMonth(1)
-        else if (t === "{") root.moveYear(-1)
-        else if (t === "}") root.moveYear(1)
-        else if (t === "t" || t === "T") root.goToToday()
-        else if (t === "w" || t === "W") root.toggleWeekStart()
-        else if (t === "n" || t === "N") root.newEvent()
-        else if (t === "s" || t === "S") root.openSettings()
-        else if (t === "r" || t === "R") root.refreshCalendar()
-        else if (t === "o" || t === "O") root.openSelectedDay()
-        else if (t === ",") root.moveSelection(-1)
-        else if (t === ".") root.moveSelection(1)
-        else if (t === "<") root.moveSelection(-7)
-        else if (t === ">") root.moveSelection(7)
-      }
+      focus: true
+      Keys.priority: Keys.BeforeItem
+      Keys.onPressed: function(event) { root.handleCalendarKey(event) }
 
       Flickable {
         id: calendarScroll
@@ -501,6 +514,31 @@ Panel {
                 fontFamily: root.contentFontFamily
               }
             }
+          }
+
+          Text {
+            visible: root.keyboardHelpVisible
+            width: parent.width
+            textFormat: Text.PlainText
+            wrapMode: Text.WordWrap
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.body
+            text: "KEYBOARD SHORTCUTS\n"
+              + "← / → or H / L: previous / next day\n"
+              + "↑ / ↓ or K / J: previous / next week\n"
+              + "Ctrl + arrows or H/J/K/L: previous / next month\n"
+              + "[ / ]: month · { / }: year\n"
+              + "Home / Enter / T: today · W: week start\n"
+              + "N: new event · R: refresh · O: open in browser\n"
+              + "S: settings · Tab / Shift+Tab: switch panel\n"
+              + "?: toggle help · Esc: close\n\n"
+              + "NEW EVENT\n"
+              + "Tab / Shift+Tab: change field · ↑ / ↓: adjust date/time\n"
+              + "Shift + ↑ / ↓ in date: change week\n"
+              + "Alt + ← / →: calendar · Alt + ↑ / ↓: reminder\n"
+              + "Alt+A: all-day · Enter: save · Esc: cancel\n"
+              + "Quick-add shortcut: configurable in settings"
           }
 
           // ---- Year progress, doubling as the rule under the hero:
