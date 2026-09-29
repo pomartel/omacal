@@ -1,10 +1,14 @@
 import QtQuick
 import Quickshell
 import "plugin" as Plugin
+import "plugin/Calendar.js" as Cal
 
 ShellRoot {
   id: root
   property bool submitted: false
+  property bool rangeStarted: false
+  property bool navigationStarted: false
+  property var rangeWeeks: []
   Plugin.BarWidget {
     id: widget
     settings: ({ backend: "google", googleAccount: "calendar@example.test", notifications: false })
@@ -44,6 +48,31 @@ ShellRoot {
       if (quickAdd.backend.info.id !== "google") throw new Error("Quick add uses wrong backend")
       if (heyQuickAdd.backend.info.id !== "hey") throw new Error("Default HEY backend changed")
       if (widget.capabilities.watch || widget.capabilities.timeTracking) throw new Error("Wrong capabilities")
+      if (!root.rangeStarted) {
+        root.rangeStarted = true
+        var weeks = []
+        for (var i = 0; i < 20; i++) weeks.push(Cal.addDays("2025-01-06", i * 7))
+        root.rangeWeeks = weeks
+        widget.visibleWeeks = weeks
+        widget.requestWeeks(weeks, true)
+        return
+      }
+      if (widget.loading || widget.queuedWeeks.length > 0) return
+      for (var j = 0; j < root.rangeWeeks.length; j++)
+        if (!widget.weekIsFresh(root.rangeWeeks[j])) throw new Error("Large range lost a week")
+      if (!root.navigationStarted) {
+        root.navigationStarted = true
+        for (var month = 0; month < 5; month++) {
+          var page = []
+          for (var day = 0; day < 6; day++) page.push(Cal.addDays("2024-01-01", (month * 6 + day) * 7))
+          widget.showWeeks(page)
+          root.rangeWeeks = page
+        }
+        var keep = widget.baseWeeks().concat(root.rangeWeeks)
+        for (var q = 0; q < widget.queuedWeeks.length; q++)
+          if (keep.indexOf(widget.queuedWeeks[q]) === -1) throw new Error("Obsolete month still queued")
+        return
+      }
       var cachedCount = widget.events.length
       widget.applyWeeks(1, '{"ok":false,"error":"Invalid week range."}')
       if (widget.lastError !== "Invalid week range.") throw new Error("Backend error was hidden")

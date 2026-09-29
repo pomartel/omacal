@@ -168,6 +168,9 @@ BarWidget {
 
   function showWeeks(keys) {
     root.visibleWeeks = keys || []
+    // Navigation supersedes queued months; retain the reminder weeks.
+    var keep = baseWeeks().concat(root.visibleWeeks)
+    root.queuedWeeks = root.queuedWeeks.filter(function(key) { return keep.indexOf(key) !== -1 })
     requestWeeks(root.visibleWeeks, false)
   }
 
@@ -195,6 +198,14 @@ BarWidget {
       return
     }
 
+    // The Google backend accepts at most 16 weeks per invocation. Large
+    // requests drain in batches instead of failing after rapid navigation.
+    var batchSize = 16
+    var pending = root.queuedWeeks.slice()
+    for (var p = batchSize; p < wanted.length; p++)
+      if (pending.indexOf(wanted[p]) === -1) pending.push(wanted[p])
+    root.queuedWeeks = pending
+    wanted = wanted.slice(0, batchSize)
     root.loading = true
     root.fetchingWeeks = wanted
     weekProcess.command = root.backend.fetchCommand(root.backendMode, wanted)
