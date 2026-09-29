@@ -212,7 +212,7 @@ Navigation follows Intemporel. Shortcuts are inactive while editing a form or se
 | --- | --- |
 | `←` `→` or `H` `L` | Previous / next day |
 | `↑` `↓` or `K` `J` | Previous / next week |
-| `Ctrl` + arrows or `H/J/K/L` | Previous / next month |
+| `Ctrl` + arrows or `H/J/K/L` | Previous / next month, keeping the selected day (clamped to the last day if needed) |
 | `[` `]` | Previous / next month |
 | `{` `}` | Previous / next year |
 | `Home`, `Enter`, `Space`, or `T` | Return to today |

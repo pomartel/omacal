@@ -26,12 +26,28 @@ ShellRoot {
     press(Qt.Key_L, "l")
     if (calendarPanel.selectedKey !== "2026-02-01") throw new Error("Vim day/week navigation failed")
     press(Qt.Key_Right, "", Qt.ControlModifier)
-    if (calendarPanel.viewMonth !== 2) throw new Error("Ctrl+Right did not change month")
+    if (calendarPanel.viewMonth !== 2 || calendarPanel.selectedKey !== "2026-03-01") throw new Error("Ctrl+Right did not move selection with month")
     press(Qt.Key_K, "", Qt.ControlModifier)
-    if (calendarPanel.viewMonth !== 1) throw new Error("Ctrl+K did not change month")
+    if (calendarPanel.viewMonth !== 1 || calendarPanel.selectedKey !== "2026-02-01") throw new Error("Ctrl+K did not move selection with month")
     press(Qt.Key_BracketRight, "]")
     press(Qt.Key_BraceRight, "}")
     if (calendarPanel.viewMonth !== 2 || calendarPanel.viewYear !== 2027) throw new Error("Month/year shortcuts changed")
+    for (var example of [
+      ["2026-01-31", 2026, 0, Qt.Key_Right, "2026-02-28"],
+      ["2028-01-31", 2028, 0, Qt.Key_Down, "2028-02-29"],
+      ["2026-03-31", 2026, 2, Qt.Key_Left, "2026-02-28"],
+      ["2026-12-15", 2026, 11, Qt.Key_Right, "2027-01-15"],
+      ["2026-01-15", 2026, 0, Qt.Key_Up, "2025-12-15"]
+    ]) {
+      calendarPanel.selectedKey = example[0]
+      calendarPanel.viewYear = example[1]
+      calendarPanel.viewMonth = example[2]
+      press(example[3], "", Qt.ControlModifier)
+      if (calendarPanel.selectedKey !== example[4]) throw new Error("Month selection failed: " + example[0])
+      var selected = Cal.dateFromKey(calendarPanel.selectedKey)
+      if (calendarPanel.viewYear !== selected.getFullYear() || calendarPanel.viewMonth !== selected.getMonth())
+        throw new Error("Selected date is outside displayed month")
+    }
     press(Qt.Key_Home)
     if (calendarPanel.selectedKey !== calendarPanel.todayKey) throw new Error("Home did not return to today")
     press(Qt.Key_Question, "?")

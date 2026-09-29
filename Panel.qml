@@ -103,7 +103,7 @@ Panel {
     var dy = key === Qt.Key_Up || key === Qt.Key_K ? -1
       : key === Qt.Key_Down || key === Qt.Key_J ? 1 : 0
     if (dx !== 0 || dy !== 0) {
-      if (ctrl) root.moveMonth(dx || dy)
+      if (ctrl) root.moveMonth(dx || dy, true)
       else root.moveSelection(dx || dy * 7)
     } else if (key === Qt.Key_Home || key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Space || text.toLowerCase() === "t") root.goToToday()
     else if (key === Qt.Key_Escape) root.close()
@@ -313,8 +313,13 @@ Panel {
     root.selectedKey = root.todayKey
   }
 
-  function moveMonth(delta) {
+  function moveMonth(delta, followSelection) {
     var next = Model.stepMonth(viewYear, viewMonth, delta)
+    if (followSelection) {
+      var day = Cal.dateFromKey(root.selectedKey).getDate()
+      var lastDay = new Date(next.year, next.month + 1, 0).getDate()
+      root.selectDay(Cal.keyForDate(new Date(next.year, next.month, Math.min(day, lastDay))))
+    }
     root.viewYear = next.year
     root.viewMonth = next.month
   }
