@@ -4,11 +4,14 @@ import importlib.util
 import io
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import time
 import unittest
 from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).parents[1] / "backends"))
 
 spec = importlib.util.spec_from_file_location("google_backend", Path(__file__).parents[1] / "backends/google.py")
 google = importlib.util.module_from_spec(spec)
@@ -22,6 +25,13 @@ EVENT = {"id": "abcd" * 40, "summary": "Meeting", "start": {"dateTime": "2026-09
 
 
 class GoogleTests(unittest.TestCase):
+    def setUp(self):
+        self.cache_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.cache_dir.cleanup)
+        env = patch.dict(os.environ, {"XDG_CACHE_HOME": self.cache_dir.name})
+        env.start()
+        self.addCleanup(env.stop)
+
     def test_event_projection(self):
         result = google.project_event({**EVENT, "recurringEventId": "series", "attendees": [
             {"self": True, "responseStatus": "declined"}], "conferenceData": {"entryPoints": [
@@ -137,6 +147,18 @@ class GoogleTests(unittest.TestCase):
             code = google.main(["google.py", "events", "calendar@example.test", '["2026-09-28"]'])
         self.assertEqual(code, 1)
         self.assertEqual(json.loads(output.getvalue()), {"ok": False, "error": "Offline"})
+
+    def test_offline_cache_does_not_call_google_or_replace_good_data(self):
+        cache = google.CalendarCache("calendar@example.test")
+        cache.save_weeks([{"week": "2026-09-28", "events": [google.project_event(EVENT, CALENDAR)]}], 0)
+        saved = cache.read()
+        output = io.StringIO()
+        with patch.object(google, "cli", side_effect=AssertionError("Network used for cache")), contextlib.redirect_stdout(output):
+            self.assertEqual(google.main(["google.py", "cache", "calendar@example.test"]), 0)
+        self.assertEqual(json.loads(output.getvalue()), saved)
+        with patch.object(google, "verify_account"), patch.object(google, "fetch", side_effect=google.BackendError("Offline")), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(google.main(["google.py", "events", "calendar@example.test", '["2026-09-28"]']), 1)
+        self.assertEqual(cache.read(), saved)
 
     def test_real_subprocess_boundary_uses_json_argv_not_shell(self):
         # A disposable gws executable exercises Python -> CLI -> JSON without Google access.

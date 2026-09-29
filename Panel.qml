@@ -1117,7 +1117,7 @@ Panel {
                   Button {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !root.selectedIsToday || !root.viewingCurrentMonth
-                    text: "Aujourd’hui"
+                    text: "Auj"
                     tooltipText: "Revenir à aujourd’hui (T)"
                     bordered: true
                     foreground: root.contentForeground
@@ -1201,6 +1201,18 @@ Panel {
                     onActivated: root.activateEvent(modelData)
                     onDeleteRequested: root.deleteEvent(modelData)
                   }
+                }
+
+                Text {
+                  visible: text !== ""
+                  width: parent.width
+                  wrapMode: Text.Wrap
+                  textFormat: Text.PlainText
+                  text: root.hostWidget && typeof root.hostWidget.cacheNote === "function"
+                    ? root.hostWidget.cacheNote(root.selectedKey) : ""
+                  color: Qt.darker(root.contentForeground, 1.6)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
                 }
 
                 // What an empty day means depends on whether HEY answered.

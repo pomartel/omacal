@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Translate Google Workspace CLI responses to OmaCal's backend protocol.
 
-No credentials or calendar data are stored. Writes only run on explicit UI actions.
+Calendar snapshots are cached locally; credentials are never cached here.
+Writes only run on explicit UI actions.
 """
 import concurrent.futures
 import datetime as dt
@@ -10,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 from zoneinfo import ZoneInfo
+from cache import CalendarCache
 
 OUTPUT_LIMIT = 4 * 1024 * 1024
 EVENT_LIMIT = 2000
@@ -219,6 +221,10 @@ def delete(request):
 def main(argv):
     try:
         action, account = argv[1:3]
+        cache = CalendarCache(account)
+        if action == "cache":
+            print(json.dumps(cache.read() if account else CalendarCache.empty(), separators=(",", ":")))
+            return 0
         verify_account(account)
         value = json.loads(argv[3]) if len(argv) > 3 else None
         if action == "probe":
@@ -226,16 +232,23 @@ def main(argv):
         elif action == "calendars":
             results = [[project_calendar(c) for c in calendars()]]
         elif action == "events":
+            generation = cache.read()["generation"]
             results = fetch(value)
         elif action == "create":
+            cache.invalidate()
             results = [create(value)]
         elif action == "delete":
+            cache.invalidate()
             results = [delete(value)]
         else:
             raise BackendError("Opération Google Agenda inconnue.")
         output = "\n".join(json.dumps(item, separators=(",", ":")) for item in results)
         if len(output.encode()) > OUTPUT_LIMIT:
             raise BackendError("Google Agenda a renvoyé trop de données.")
+        if action == "events":
+            cache.save_weeks(results, generation)
+        elif action == "calendars":
+            cache.save_calendars(results[0])
         print(output)
         return 0
     except (BackendError, ValueError, KeyError, TypeError) as error:

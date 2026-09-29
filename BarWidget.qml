@@ -174,6 +174,32 @@ BarWidget {
     requestWeeks(root.visibleWeeks, false)
   }
 
+  function restoreCache(text) {
+    var saved
+    try { saved = JSON.parse(text) } catch (e) { return }
+    if (!saved || saved.version !== 1 || !saved.weeks) return
+    var cache = {}
+    for (var key in saved.weeks) {
+      var entry = saved.weeks[key]
+      if (!Cal.isDayKey(key) || !entry || !Array.isArray(entry.events) || typeof entry.at !== "number") continue
+      var parsed = Cal.parseRangeOutput(JSON.stringify({ week: key, events: entry.events }))
+      if (parsed && parsed[key] !== null)
+        cache[key] = { events: parsed[key], at: entry.at * 1000, cached: true }
+    }
+    root.weekCache = cache
+    var calendars = Cal.parseCalendars(JSON.stringify(saved.calendars || []))
+    if (calendars !== null) root.calendars = calendars
+    rebuildIndex()
+    if (Object.keys(cache).length > 0) root.loaded = true
+  }
+
+  function cacheNote(dayKey) {
+    var entry = root.weekCache[Cal.weekStartKey(dayKey)]
+    if (!entry || entry.events === null || (!entry.cached && root.lastError === "")) return ""
+    return "Données en cache · " + new Date(entry.at).toLocaleString(Qt.locale("fr_CA"), "d MMM HH:mm")
+      + (root.loading ? " · actualisation…" : "")
+  }
+
   function weekIsFresh(key) {
     var entry = root.weekCache[key]
     return !!entry && entry.events !== null && (Date.now() - entry.at) < root.refreshIntervalSec * 1000
@@ -229,7 +255,7 @@ BarWidget {
           // turning a busy week blank because the network blinked.
           if (!cache[week]) cache[week] = { events: null, at: 0 }
         } else {
-          cache[week] = { events: parsed[week], at: Date.now() }
+          cache[week] = { events: parsed[week], at: Date.now(), cached: false }
         }
       }
     }
@@ -237,9 +263,11 @@ BarWidget {
     // Keeps the cache to the weeks anyone is looking at.
     var keep = baseWeeks().concat(root.visibleWeeks)
     var keys = Object.keys(cache)
-    if (keys.length > 16) {
-      for (var k = 0; k < keys.length; k++)
-        if (keep.indexOf(keys[k]) === -1) delete cache[keys[k]]
+    if (keys.length > 32) {
+      keys.sort(function(a, b) { return cache[a].at - cache[b].at })
+      var remaining = keys.length
+      for (var k = 0; k < keys.length && remaining > 32; k++)
+        if (keep.indexOf(keys[k]) === -1) { delete cache[keys[k]]; remaining-- }
     }
 
     // An empty answer is the shape every failure takes here (the CLI is
@@ -459,7 +487,10 @@ BarWidget {
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
 
-  Component.onCompleted: refreshCalendar(true)
+  Component.onCompleted: {
+    if (root.backend.cacheCommand) cacheProcess.running = true
+    else refreshCalendar(true)
+  }
 
   SystemClock {
     id: clock
@@ -487,6 +518,17 @@ BarWidget {
     repeat: true
     triggeredOnStart: true
     onTriggered: root.checkReminders()
+  }
+
+  Process {
+    id: cacheProcess
+    running: false
+    command: root.backend.cacheCommand || []
+    stdout: StdioCollector { id: cacheOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode === 0) root.restoreCache(cacheOutput.text)
+      root.refreshCalendar(true)
+    }
   }
 
   Process {

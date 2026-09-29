@@ -10,6 +10,7 @@ function configured(helperPath, account) {
     info: { id: "google", name: "Google Agenda", capabilities: {
       create: true, delete: true, watch: false, timeTracking: false, dayLink: true
     } },
+    cacheCommand: command("cache"),
     probeCommand: command("probe"),
     probe: probe,
     readError: readError,

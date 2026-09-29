@@ -13,6 +13,24 @@ Omarchy's stock clock and calendar with your calendar laid over it.
 This fork supports [HEY](https://hey.com) and Google Calendar through the
 Google Workspace CLI (`gws`). HEY remains the default.
 
+## Cache local Google Agenda
+
+Les événements et la liste des calendriers sont conservés dans
+`~/.cache/omacal/` (ou `$XDG_CACHE_HOME/omacal/`). Chaque compte et fuseau
+horaire possède son propre cache, limité à 32 semaines récemment chargées,
+4 Mio et 30 jours. Les fichiers sont réservés à votre utilisateur et ne
+contiennent aucun identifiant de connexion, mais contiennent les détails des
+événements. Ils ne sont pas synchronisés par le plugin.
+
+Au démarrage, les données enregistrées s’affichent immédiatement, puis sont
+actualisées en arrière-plan. La mention « Données en cache » indique les
+journées restaurées, avec la date de récupération. En cas de panne réseau,
+le dernier résultat reste visible et l’erreur est affichée. **R** force une
+actualisation auprès de Google ; les erreurs ne remplacent jamais le cache.
+Les créations et suppressions invalident le cache avant l’opération pour
+éviter de réafficher des données périmées, même si la réponse est interrompue.
+La connexion Google reste obligatoire pour toute modification.
+
 ## Google Calendar
 
 Requires Python 3.9 or newer and [gws](https://github.com/googleworkspace/cli)

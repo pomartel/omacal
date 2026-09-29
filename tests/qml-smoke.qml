@@ -80,7 +80,7 @@ ShellRoot {
     repeat: true
     onTriggered: {
       if (!root.keysChecked) { root.checkKeys(); root.keysChecked = true }
-      if (!widget.loaded || widget.calendars.length === 0 || root.submitted) return
+      if (!widget.backendChecked || widget.loading || !widget.loaded || widget.calendars.length === 0 || root.submitted) return
       if (widget.lastError !== "") throw new Error(widget.lastError)
       if (widget.events.length === 0) throw new Error("No fixture events")
       if (widget.events[0].calendarId !== "calendar@example.test") throw new Error("Lost calendar ID")
@@ -89,6 +89,11 @@ ShellRoot {
       if (heyQuickAdd.backend.info.id !== "hey") throw new Error("Default HEY backend changed")
       if (widget.capabilities.watch || widget.capabilities.timeTracking) throw new Error("Wrong capabilities")
       if (!root.rangeStarted) {
+        var restored = widget.weekCache["2020-01-06"]
+        if (!restored || !restored.cached || restored.events.length !== 1) throw new Error("Startup cache was not restored")
+        if (widget.cacheNote("2020-01-06").indexOf("Données en cache") === -1) throw new Error("Cached data not labeled")
+        var current = widget.weekCache[widget.baseWeeks()[0]]
+        if (!current || current.cached) throw new Error("Background fetch did not replace cached data")
         root.rangeStarted = true
         var weeks = []
         for (var i = 0; i < 20; i++) weeks.push(Cal.addDays("2025-01-06", i * 7))

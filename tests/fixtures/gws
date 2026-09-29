@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """Offline gws fixture for command and QML integration tests."""
 import json
+import os
 import sys
+
+if os.environ.get("OMACAL_FIXTURE_OFFLINE") == "1":
+    print(json.dumps({"error": {"message": "Offline fixture"}}))
+    sys.exit(1)
 
 args = sys.argv[1:]
 calendar = {"id": "calendar@example.test", "summary": "Test calendar", "accessRole": "owner",
