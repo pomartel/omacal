@@ -451,6 +451,54 @@ BarWidget {
     if (panelLoader.item) panelLoader.item.toggle()
   }
 
+  readonly property string panelScreenName: button.QsWindow.window && button.QsWindow.window.screen
+    ? button.QsWindow.window.screen.name : ""
+
+  // IPC is owned by just one per-monitor instance. Prefer an open calendar,
+  // then the focused screen's copy, so toggle also closes the visible panel.
+  property var pendingPanelCommands: []
+
+  function invokeFocusedPanel(method) {
+    root.pendingPanelCommands = root.pendingPanelCommands.concat([method])
+    if (!panelMonitorProcess.running) panelMonitorProcess.running = true
+  }
+
+  function routePanelCommand(method, focused) {
+    var widgets = root.bar && typeof root.bar.moduleWidgets === "function"
+      ? root.bar.moduleWidgets(root.moduleName) : [root]
+    var widget = root
+    for (var i = 0; i < widgets.length; i++) {
+      var candidate = widgets[i]
+      if (!candidate || candidate.width <= 0 || candidate.height <= 0) continue
+      if (candidate.opened) {
+        widget = candidate
+        break
+      }
+      if (candidate.panelScreenName === focused) widget = candidate
+    }
+    if (typeof widget[method] === "function") widget[method]()
+  }
+
+  // Read the compositor directly: Quickshell's focusedMonitor can be empty
+  // with the installed Hyprland version even when an output is focused.
+  Process {
+    id: panelMonitorProcess
+    command: ["hyprctl", "monitors", "-j"]
+    stdout: StdioCollector { id: panelMonitorOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      var focused = ""
+      try {
+        var monitors = JSON.parse(panelMonitorOutput.text)
+        for (var i = 0; i < monitors.length; i++) {
+          if (monitors[i].focused) { focused = monitors[i].name; break }
+        }
+      } catch (e) {}
+      var commands = root.pendingPanelCommands
+      root.pendingPanelCommands = []
+      for (var j = 0; j < commands.length; j++) root.routePanelCommand(commands[j], focused)
+    }
+  }
+
   function toggleWeekStart() {
     if (panelLoader.item) panelLoader.item.toggleWeekStart()
   }
@@ -665,13 +713,13 @@ BarWidget {
     function refresh(): void { root.refresh() }
     function cycleFormat(): void { root.cycleFormat() }
     function toggleWeekStart(): void { root.toggleWeekStart() }
-    function open(): void { root.open() }
-    function close(): void { root.close() }
-    function show(): void { root.open() }
-    function hide(): void { root.close() }
-    function toggle(): void { root.togglePanel() }
-    function newEvent(): void { root.newEvent() }
-    function settings(): void { root.openSettings() }
+    function open(): void { root.invokeFocusedPanel("open") }
+    function close(): void { root.invokeFocusedPanel("close") }
+    function show(): void { root.invokeFocusedPanel("open") }
+    function hide(): void { root.invokeFocusedPanel("close") }
+    function toggle(): void { root.invokeFocusedPanel("togglePanel") }
+    function newEvent(): void { root.invokeFocusedPanel("newEvent") }
+    function settings(): void { root.invokeFocusedPanel("openSettings") }
   }
 
   WidgetButton {
