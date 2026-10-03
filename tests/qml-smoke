@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Requires an installed Omarchy shell and Quickshell. Uses only an offline gws fixture.
+set -euo pipefail
+repo=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+shell_dir=${OMARCHY_PATH:-/usr/share/omarchy}/shell
+ln -s "$shell_dir/Commons" "$work/Commons"
+ln -s "$shell_dir/Ui" "$work/Ui"
+ln -s "$repo" "$work/plugin"
+cp "$repo/tests/qml-smoke.qml" "$work/shell.qml"
+seed_cache() {
+  XDG_CACHE_HOME="$work/cache" PATH="$repo/tests/fixtures:$PATH" python3 "$repo/backends/google.py" calendars calendar@example.test >/dev/null
+  XDG_CACHE_HOME="$work/cache" PATH="$repo/tests/fixtures:$PATH" python3 "$repo/backends/google.py" events calendar@example.test '["2020-01-06"]' >/dev/null
+}
+seed_cache
+XDG_CACHE_HOME="$work/cache" QT_QPA_PLATFORM=wayland PATH="$repo/tests/fixtures:$PATH" timeout 30 quickshell -p "$work" --no-color >"$work/log" 2>&1 || { cat "$work/log"; exit 1; }
+if grep -E 'TypeError|ReferenceError|SyntaxError|Error:|is not a function|is not defined|Failed to load' "$work/log"; then
+  exit 1
+fi
+grep 'OMACAL_QML_SMOKE_OK' "$work/log"
+
+# A new shell can restore data even when every Google command fails.
+seed_cache
+cp "$repo/tests/qml-cache.qml" "$work/shell.qml"
+XDG_CACHE_HOME="$work/cache" OMACAL_FIXTURE_OFFLINE=1 QT_QPA_PLATFORM=wayland PATH="$repo/tests/fixtures:$PATH" timeout 15 quickshell -p "$work" --no-color >"$work/offline-log" 2>&1 || { cat "$work/offline-log"; exit 1; }
+if grep -E 'TypeError|ReferenceError|SyntaxError|Error:|is not a function|is not defined|Failed to load' "$work/offline-log"; then exit 1; fi
+grep 'OMACAL_CACHE_SMOKE_OK' "$work/offline-log"
+
+# Slow deletion: repeated confirmation is ignored; failed deletion remains retryable.
+cp "$repo/tests/qml-delete.qml" "$work/shell.qml"
+for fail in 0 1; do
+  rm -f "$work/cache/delete-calls"
+  XDG_CACHE_HOME="$work/cache" OMACAL_FIXTURE_DELETE_FAIL="$fail" QT_QPA_PLATFORM=wayland PATH="$repo/tests/fixtures:$PATH" timeout 15 quickshell -p "$work" --no-color >"$work/delete-log" 2>&1 || { cat "$work/delete-log"; exit 1; }
+  if grep -E 'TypeError|ReferenceError|SyntaxError|Error:|is not a function|is not defined|Failed to load' "$work/delete-log"; then exit 1; fi
+  [[ $(wc -l < "$work/cache/delete-calls") == 1 ]]
+  grep 'OMACAL_DELETE_SMOKE_OK' "$work/delete-log"
+done

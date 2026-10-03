@@ -23,8 +23,8 @@ Item {
     if (busy || !enabled) return
     var parsed = Model.parse(next)
     if (!parsed) {
-      message = "Quick add: use modifiers and a key, for example ALT + SHIFT + SPACE."
-      console.warn("crmne.omacal:", message)
+      message = "Ajout rapide : utilisez des modificateurs et une touche, par exemple ALT + SHIFT + SPACE."
+      console.warn("pomartel.omacal:", message)
       return
     }
     candidate = parsed.text
@@ -36,15 +36,15 @@ Item {
   function checkBindings(text, code) {
     if (code !== 0 || !text.trim()) {
       busy = false
-      message = "Quick add: could not read Hyprland's shortcuts."
+      message = "Ajout rapide : impossible de lire les raccourcis Hyprland."
       return
     }
     var list = Model.bindings(text)
     var taken = Model.conflict(list, Model.parse(candidate))
     if (taken) {
       busy = false
-      message = "Quick add: " + candidate + " is already assigned to " + (taken.description || "another action") + "."
-      console.warn("crmne.omacal:", message)
+      message = "Ajout rapide : " + candidate + " est déjà attribué à " + (taken.description || "une autre action") + "."
+      console.warn("pomartel.omacal:", message)
       return
     }
     registerBinding.command = ["hyprctl", "eval", Model.registerCode(list, registered, candidate, ownerId)]
@@ -82,8 +82,8 @@ Item {
     onExited: function(code) {
       root.busy = false
       if (code !== 0 || registerOutput.text.trim() !== "ok") {
-        root.message = "Quick add: could not bind the shortcut. Check your Hyprland configuration."
-        console.warn("crmne.omacal:", root.message)
+        root.message = "Ajout rapide : impossible d’attribuer le raccourci. Vérifiez la configuration Hyprland."
+        console.warn("pomartel.omacal:", root.message)
         return
       }
       root.registered = root.candidate

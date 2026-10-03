@@ -3,7 +3,7 @@ import qs.Commons
 import qs.Ui
 import "Calendar.js" as Cal
 
-// HEY Calendar's settings, inside the panel. Omarchy keeps a widget's
+// Google Agenda settings, inside the panel. Omarchy keeps a widget's
 // schema but draws no settings screen for it yet, so this is where they are
 // set. Every change is written to the widget's entry in shell.json the
 // moment it is made, the same place the stock settings live.
@@ -66,24 +66,24 @@ FocusScope {
   // What each choice does, said plainly under its row. The row describes
   // the chip under the pointer, or the chosen one.
   readonly property var barEventOptions: [
-    { value: "soon", label: "Name + time",
-      help: "Shows the event's name and when it starts, like “Team standup · in 12m”, from its earliest alert until it ends." },
-    { value: "name", label: "Name",
-      help: "Shows only the event's name, like “Team standup”, from its earliest alert until it ends." },
-    { value: "time", label: "Time",
-      help: "Shows only when the event starts, like “in 12m”, without its name, from its earliest alert until it ends." },
-    { value: "next", label: "Next",
-      help: "Always shows today's next event with its time, all day long, like “Dinner · at 18:30”. Events inside their alert come first." },
-    { value: "off", label: "Off",
-      help: "Shows only the clock. A calendar icon appears in front of it while an event is coming up, and hovering the clock names it." }
+    { value: "soon", label: "Nom + heure",
+      help: "Affiche le nom et l’heure de l’événement, par exemple « Réunion · dans 12 min », du premier rappel jusqu’à la fin." },
+    { value: "name", label: "Nom",
+      help: "Affiche seulement le nom de l’événement, du premier rappel jusqu’à la fin." },
+    { value: "time", label: "Heure",
+      help: "Affiche seulement l’heure de l’événement, par exemple « dans 12 min », du premier rappel jusqu’à la fin." },
+    { value: "next", label: "Suivant",
+      help: "Affiche le prochain événement d’aujourd’hui et son heure, par exemple « Souper · à 18:30 ». Les événements avec un rappel actif sont prioritaires." },
+    { value: "off", label: "Désactivé",
+      help: "Affiche seulement l’horloge. Une icône signale un événement à venir ; survolez l’horloge pour voir son nom." }
   ]
 
   readonly property var leadOptions: [
-    { value: "0", label: "Never", help: "Events with no alert never appear in the bar. Only events with an alert do, from that alert." },
-    { value: "5", label: "5 min", help: "Events with no alert appear in the bar 5 minutes before they start." },
-    { value: "15", label: "15 min", help: "Events with no alert appear in the bar 15 minutes before they start." },
-    { value: "30", label: "30 min", help: "Events with no alert appear in the bar 30 minutes before they start." },
-    { value: "60", label: "1 h", help: "Events with no alert appear in the bar an hour before they start." }
+    { value: "0", label: "Jamais", help: "Seuls les événements avec un rappel apparaissent dans la barre, à partir de ce rappel." },
+    { value: "5", label: "5 min", help: "Les événements sans rappel apparaissent 5 minutes avant le début." },
+    { value: "15", label: "15 min", help: "Les événements sans rappel apparaissent 15 minutes avant le début." },
+    { value: "30", label: "30 min", help: "Les événements sans rappel apparaissent 30 minutes avant le début." },
+    { value: "60", label: "1 h", help: "Les événements sans rappel apparaissent une heure avant le début." }
   ]
 
   property int barEventHover: -1
@@ -129,7 +129,7 @@ FocusScope {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: "SETTINGS"
+        text: "PARAMÈTRES"
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.subtitle
@@ -141,8 +141,8 @@ FocusScope {
         id: backButton
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        text: "Done"
-        tooltipText: "Back to the calendar (Esc)"
+        text: "Terminé"
+        tooltipText: "Retour au calendrier (Échap)"
         bordered: true
         foreground: root.foreground
         fontFamily: root.fontFamily
@@ -152,7 +152,7 @@ FocusScope {
     }
 
     // ---- Bar
-    Label { text: "EVENT IN THE BAR" }
+    Label { text: "ÉVÉNEMENT DANS LA BARRE" }
 
     ButtonGroup {
       id: barEventGroup
@@ -173,7 +173,7 @@ FocusScope {
       text: root.helpFor(root.barEventOptions, root.barEventHover, String(root.value("barEvent", "soon")))
     }
 
-    Label { text: "EVENTS WITH NO ALERT APPEAR BEFORE THEY START" }
+    Label { text: "PRÉAVIS POUR LES ÉVÉNEMENTS SANS RAPPEL" }
 
     ButtonGroup {
       // Transparent at rest, not the theme background: the hover fill is a
@@ -193,7 +193,7 @@ FocusScope {
       text: root.helpFor(root.leadOptions, root.leadHover, String(Cal.normalizedAlertLead(root.value("alertLeadMinutes", 15))))
     }
 
-    Label { text: "TIMES" }
+    Label { text: "HEURES" }
 
     ButtonGroup {
       // Transparent at rest, not the theme background: the hover fill is a
@@ -201,7 +201,7 @@ FocusScope {
       // halfway through before settling.
       background: "transparent"
       options: [
-        { value: "auto", label: "Like the system" },
+        { value: "auto", label: "Selon le système" },
         { value: "24", label: "24 h" },
         { value: "12", label: "12 h" }
       ]
@@ -216,26 +216,15 @@ FocusScope {
     Toggle {
       width: parent.width
       label: "Notifications"
-      description: "Your events' reminders as desktop notifications."
+      description: "Afficher les rappels des événements dans les notifications du bureau."
       checked: root.value("notifications", true) !== false
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.save("notifications", !checked)
     }
 
-    Toggle {
-      width: parent.width
-      visible: !!root.host && root.host.capabilities.watch
-      label: "Live sync"
-      description: "Follow changes made elsewhere within seconds."
-      checked: root.value("liveSync", true) !== false
-      foreground: root.foreground
-      fontFamily: root.fontFamily
-      onClicked: root.save("liveSync", !checked)
-    }
-
     // ---- Calendars
-    Label { text: "CALENDARS" }
+    Label { text: "CALENDRIERS" }
 
     Item {
       id: calendarRow
@@ -318,12 +307,12 @@ FocusScope {
     }
 
     Note {
-      text: "Hidden calendars are left out of the grid, the day and the bar. "
+      text: "Les calendriers masqués sont exclus de la grille, de la journée et de la barre. "
         + (root.host ? root.host.modeNote() : "")
     }
 
     // ---- Quick add
-    Label { text: "QUICK ADD SHORTCUT" }
+    Label { text: "RACCOURCI D’AJOUT RAPIDE" }
 
     Row {
       spacing: Style.space(8)
@@ -332,7 +321,7 @@ FocusScope {
         id: shortcutField
         width: Style.space(220)
         text: String(root.value("quickAddShortcut", "ALT + SHIFT + SPACE"))
-        placeholderText: "Off"
+        placeholderText: "Désactivé"
         foreground: root.foreground
         font.family: root.fontFamily
         onAccepted: root.save("quickAddShortcut", text.replace(/^\s+|\s+$/g, "").toUpperCase())
@@ -341,7 +330,7 @@ FocusScope {
 
       Button {
         anchors.verticalCenter: parent.verticalCenter
-        text: "Apply"
+        text: "Appliquer"
         bordered: true
         focusable: true
         foreground: root.foreground
@@ -352,7 +341,7 @@ FocusScope {
     }
 
     Note {
-      text: "Modifiers and a key, like ALT + SHIFT + SPACE. Empty turns it off. A shortcut something else already uses is left alone."
+      text: "Utilisez des modificateurs et une touche, par exemple ALT + SHIFT + SPACE. Un champ vide désactive le raccourci. Les raccourcis déjà utilisés sont conservés."
     }
   }
 }

@@ -1,33 +1,10 @@
-// OmaCal's calendar model: every piece of date, event and bar math, and
-// nothing about any one calendar service.
-//
-// Model.js is Omarchy's own clock model and stays byte-for-byte stock, so a
-// newer Omarchy can be dropped in over it. Where events come from is a
-// backend's business (backends/*.js). Like Model.js this is Qt-free, so it
-// runs under plain node (tests/run); the QML owns every pixel and process.
-//
-// ---- Backends
-//
-// A backend is a file of command lines, and every command prints one of
-// these standard shapes, so this file is the only one that parses:
-//
-//   Events, one JSON line per week or span:
-//     {"week": "YYYY-MM-DD", "events": [event...]}       a Monday-named week
-//     {"week": "YYYY-MM-DD", "error": true}               that week failed
-//     {"list": true, "first": KEY, "last": KEY, "events": [event...]}
-//       a whole span, with repeating series given once, to be unrolled
-//     {"list": true, "first": KEY, "last": KEY, "error": true}
-//   where an event is { id, title, all_day, starts_at, ends_at (ISO 8601),
-//     calendar, color (a name or #hex), calendar_id, location, url,
-//     join_url, join_title, status, reminders: [ISO 8601...], recurring,
-//     occurrence_id, repeat_kind, repeat_description }; only id, title and
-//     starts_at are required.
-//
-//   Calendars: [{ id, name, color, kind, owned }]
-//   Time tracks: [{ id, name, named, notes, starts_at, ends_at }]
-//   The track under way: { ok: true, track: { id, name, starts_at } | null }
-//
-// Writes are argv commands built from validateEvent's checked request.
+// OmaCal's date, event and bar model, shared by the Google Agenda views.
+// Qt-free so the same model runs in QML and the Node test suite.
+// Google returns expanded recurring occurrences, one JSON line per week:
+// { week: "YYYY-MM-DD", events: [...] }, or { week, error: true }.
+
+var MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july",
+  "august", "september", "october", "november", "december"]
 
 var MS_PER_DAY = 86400000
 
@@ -76,21 +53,22 @@ function normalizeEvent(raw) {
     if (at !== null) reminders.push(at)
   }
 
-  var seriesId = boundedString(raw.id, 32)
-  var occurrenceId = boundedString(raw.occurrence_id, 96)
+  var seriesId = boundedString(raw.id, 1024)
+  var occurrenceId = boundedString(raw.occurrence_id, 1024)
   return {
     // A repeating series shares one id across every day it lands on, so the
     // start is part of the identity: two Mondays of a standup are two rows.
-    key: (occurrenceId || seriesId) + "@" + startsAt,
+    key: (typeof raw.calendar_id === "string" ? raw.calendar_id + ":" : "") + (occurrenceId || seriesId) + "@" + startsAt,
     seriesId: seriesId,
     occurrenceId: occurrenceId,
     recurring: raw.recurring === true,
-    title: boundedString(raw.title, 256) || "(untitled)",
+    title: boundedString(raw.title, 256) || "(sans titre)",
     allDay: allDay,
     startsAt: startsAt,
     endsAt: boundedString(raw.ends_at, 64) || startsAt,
     location: boundedString(raw.location, 256),
-    calendarId: Number(raw.calendar_id) || 0,
+    calendarId: typeof raw.calendar_id === "string" ? boundedString(raw.calendar_id, 1024) : Number(raw.calendar_id) || 0,
+    writable: raw.writable !== false,
     calendar: boundedString(raw.calendar, 128),
     color: boundedString(raw.color, 32).toLowerCase(),
     joinUrl: safeUrl(raw.join_url),
@@ -98,8 +76,6 @@ function normalizeEvent(raw) {
     url: safeUrl(raw.url),
     status: boundedString(raw.status, 32),
     reminders: reminders,
-    repeatKind: boundedString(raw.repeat_kind, 32),
-    repeatDescription: boundedString(raw.repeat_description, 256),
     // Resolved once, here, so nothing downstream has to remember that an
     // all-day event is a floating date rather than an instant.
     startMs: allDay ? null : parseInstant(startsAt),
@@ -136,17 +112,6 @@ function parseRangeOutput(raw) {
     } catch (e) {
       continue
     }
-    if (parsed && parsed.list === true && isDayKey(parsed.first) && isDayKey(parsed.last)) {
-      found = true
-      var listed = parsed.error === true || !Array.isArray(parsed.events)
-        ? null
-        : expandAll(normalizeEvents(parsed.events), parsed.first, parsed.last)
-      var spanWeeks = weekKeysBetween(parsed.first, parsed.last)
-      var bucketed = listed === null ? null : bucketByWeek(listed, spanWeeks)
-      for (var w = 0; w < spanWeeks.length; w++)
-        weeks[spanWeeks[w]] = bucketed === null ? null : bucketed[spanWeeks[w]]
-      continue
-    }
     if (!parsed || !isDayKey(parsed.week)) continue
     found = true
     weeks[parsed.week] = parsed.error === true || !Array.isArray(parsed.events)
@@ -170,278 +135,22 @@ function parseCalendars(raw) {
   var calendars = []
   for (var i = 0; i < parsed.length && calendars.length < 100; i++) {
     var c = parsed[i]
-    if (!c || !(Number(c.id) > 0)) continue
+    if (!c || !(typeof c.id === "string" ? c.id.length > 0 : Number(c.id) > 0)) continue
     calendars.push({
-      id: Number(c.id),
+      id: typeof c.id === "string" ? boundedString(c.id, 1024) : Number(c.id),
       name: boundedString(c.name, 128),
       color: boundedString(c.color, 32).toLowerCase(),
-      kind: boundedString(c.kind, 32),
       owned: c.owned === true
     })
   }
   return calendars
 }
 
-// Calendars a new event can go on: the ones you own. "Maybe" is HEY's own
-// holding pen for tentative plans and is kept, last, the way HEY lists it.
+// Google calendars where the account has write access.
 function writableCalendars(calendars) {
-  var list = Array.isArray(calendars) ? calendars : []
-  var normal = []
-  var maybe = []
-  for (var i = 0; i < list.length; i++) {
-    if (!list[i].owned) continue
-    if (list[i].kind === "maybe") maybe.push(list[i])
-    else normal.push(list[i])
-  }
-  return normal.concat(maybe)
-}
-
-// The track under way, from its standard shape: the track, null when
-// nothing is running, or undefined when the answer was unusable.
-function parseCurrentTrack(raw) {
-  var text = String(raw === undefined || raw === null ? "" : raw).replace(/^\s+|\s+$/g, "")
-  if (text === "") return undefined
-  var parsed
-  try {
-    parsed = JSON.parse(text)
-  } catch (e) {
-    return undefined
-  }
-  if (!parsed || parsed.ok !== true) return undefined
-  var track = parsed.track
-  if (!track || typeof track !== "object") return null
-  var startMs = parseInstant(track.starts_at)
-  if (startMs === null) return null
-  return {
-    id: boundedString(track.id, 32),
-    title: boundedString(track.name, 256),
-    startMs: startMs
-  }
-}
-
-// A finished track, shaped enough like a timed event that the same day
-// math files it: the days it covers, where it starts and ends.
-function normalizeTimeTrack(raw) {
-  if (!raw || typeof raw !== "object") return null
-  var startMs = parseInstant(raw.starts_at)
-  var endMs = parseInstant(raw.ends_at)
-  if (startMs === null) return null
-  return {
-    key: "track:" + boundedString(raw.id, 32),
-    id: boundedString(raw.id, 32),
-    name: boundedString(raw.name, 256) || "Time track",
-    named: raw.named === true,
-    notes: boundedString(raw.notes, 1024),
-    allDay: false,
-    startMs: startMs,
-    endMs: endMs === null || endMs < startMs ? startMs : endMs
-  }
-}
-
-function parseTimeTracks(raw) {
-  var text = String(raw === undefined || raw === null ? "" : raw).replace(/^\s+|\s+$/g, "")
-  if (text === "") return null
-  var parsed
-  try {
-    parsed = JSON.parse(text)
-  } catch (e) {
-    return null
-  }
-  if (!Array.isArray(parsed)) return null
-  var tracks = []
-  for (var i = 0; i < parsed.length && tracks.length < 1000; i++) {
-    var track = normalizeTimeTrack(parsed[i])
-    if (track) tracks.push(track)
-  }
-  return tracks
-}
-
-// Day key → that day's tracks, earliest first.
-function tracksByDay(tracks) {
-  var index = {}
-  var list = Array.isArray(tracks) ? tracks : []
-  for (var i = 0; i < list.length; i++) {
-    var keys = eventDayKeys(list[i])
-    for (var k = 0; k < keys.length; k++) {
-      if (!index[keys[k]]) index[keys[k]] = []
-      index[keys[k]].push(list[i])
-    }
-  }
-  for (var key in index) index[key].sort(function(a, b) { return a.startMs - b.startMs })
-  return index
-}
-
-// Time tracked on a day: only the part of each track that falls on it.
-function trackedOnDay(tracks, dayKey) {
-  var dayStart = dateFromKey(dayKey).getTime()
-  var dayEnd = dateFromKey(addDays(dayKey, 1)).getTime()
-  var total = 0
-  var list = Array.isArray(tracks) ? tracks : []
-  for (var i = 0; i < list.length; i++)
-    total += Math.max(0, Math.min(list[i].endMs, dayEnd) - Math.max(list[i].startMs, dayStart))
-  return total
-}
-
-// The track a stop just finished: the newest one that ended after `sinceMs`.
-function newestTrackSince(tracks, sinceMs) {
-  var best = null
-  var list = Array.isArray(tracks) ? tracks : []
-  for (var i = 0; i < list.length; i++)
-    if (list[i].endMs >= sinceMs && (!best || list[i].endMs > best.endMs)) best = list[i]
-  return best
-}
-
-// ---------------------------------------------------------------------------
-// Repeats, for backends that list a series once
-// ---------------------------------------------------------------------------
-
-// A span line lists each series once, on the day it began, with only the
-// name of its schedule (hey-cli 1.3's `hey event list` answers this way). These are HEY's presets, which is
-// what its own form creates. A custom schedule ("rrule") is opaque except
-// for its description; the common yearly one is recognised from that, and
-// anything else shows on its first day only.
-var repeatSteps = {
-  "every_day": { days: 1 },
-  "every_weekday": { days: 1, weekdays: true },
-  "every_week": { days: 7 },
-  "every_other_week": { days: 14 },
-  "every_day_of_month": { months: 1 },
-  "every_year": { months: 12 }
-}
-
-var MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july",
-  "august", "september", "october", "november", "december"]
-
-function repeatStep(event) {
-  if (repeatSteps[event.repeatKind]) return repeatSteps[event.repeatKind]
-  if (event.repeatKind === "rrule" && /^yearly on the \d+\w* day of the month in \w+$/i.test(event.repeatDescription))
-    return repeatSteps.every_year
-  return null
-}
-
-// "every week until September  3, 2026" → "2026-09-03".
-function repeatUntil(description) {
-  var match = /until\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})/.exec(String(description || ""))
-  if (!match) return ""
-  var month = MONTH_NAMES.indexOf(match[1].toLowerCase())
-  if (month === -1) return ""
-  return dateKey(parseInt(match[3], 10), month, parseInt(match[2], 10))
-}
-
-// "every day 5 times" → 5.
-function repeatTimes(description) {
-  var match = /(\d+)\s+times/.exec(String(description || ""))
-  return match ? parseInt(match[1], 10) : 0
-}
-
-// The n-th occurrence's local start date, or null when that month or year
-// has no such day (the 31st, or February 29th), which HEY skips.
-function occurrenceDate(start, step, n) {
-  var date
-  if (step.months) {
-    date = new Date(start.getFullYear(), start.getMonth() + step.months * n, start.getDate(),
-      start.getHours(), start.getMinutes(), start.getSeconds())
-    return date.getDate() === start.getDate() ? date : null
-  }
-  date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + step.days * n,
-    start.getHours(), start.getMinutes(), start.getSeconds())
-  return date
-}
-
-function shiftEvent(event, startDate, firstDayKey) {
-  var copy = {}
-  for (var field in event) copy[field] = event[field]
-  if (event.allDay) {
-    // Floating dates: moved as text, never through a timezone.
-    var span = daysBetween(String(event.startsAt).substr(0, 10), String(event.endsAt).substr(0, 10))
-    var newKey = keyForDate(startDate)
-    copy.startsAt = newKey + "T00:00:00Z"
-    copy.endsAt = addDays(newKey, Math.max(0, span)) + "T00:00:00Z"
-  } else {
-    var length = (event.endMs || event.startMs) - event.startMs
-    copy.startMs = startDate.getTime()
-    copy.endMs = copy.startMs + length
-    copy.startsAt = new Date(copy.startMs).toISOString()
-    copy.endsAt = new Date(copy.endMs).toISOString()
-  }
-  copy.recurring = true
-  copy.key = event.seriesId + "@" + copy.startsAt
-  return copy
-}
-
-// A series' occurrences that touch firstKey..lastKey. Occurrences are
-// counted from the series' first day so "5 times" stops where HEY stops;
-// the count is jumped ahead where the step allows, so a daily series from
-// 1987 does not walk every day since.
-function expandRecurring(event, firstKey, lastKey) {
-  var step = repeatStep(event)
-  if (!step) return [event]
-
-  var allDay = event.allDay
-  var start = allDay ? dateFromKey(String(event.startsAt).substr(0, 10)) : new Date(event.startMs)
-  var firstKeyOfSeries = keyForDate(start)
-  var until = repeatUntil(event.repeatDescription)
-  var times = repeatTimes(event.repeatDescription)
-  // The longest an occurrence can run back into the range from before it.
-  var lookBack = Math.max(0, eventDayKeys(event).length)
-  var from = addDays(firstKey, -lookBack)
-
-  var n = 0
-  if (!step.weekdays && !times) {
-    var gap = daysBetween(firstKeyOfSeries, from)
-    if (step.days && gap > 0) n = Math.floor(gap / step.days)
-    else if (step.months && gap > 0) n = Math.max(0, Math.floor(gap / (31 * step.months)))
-  }
-
-  var out = []
-  var counted = n
-  for (var guard = 0; guard < 5000; guard++, n++) {
-    var date = occurrenceDate(start, step, n)
-    if (date === null) continue
-    var key = keyForDate(date)
-    if (key > lastKey) break
-    if (until !== "" && key > until) break
-    if (step.weekdays && (date.getDay() === 0 || date.getDay() === 6)) continue
-    counted++
-    if (times && counted > times) break
-    var occurrence = n === 0 ? event : shiftEvent(event, date, firstKey)
-    var days = eventDayKeys(occurrence)
-    if (days.length > 0 && days[days.length - 1] >= firstKey && days[0] <= lastKey) out.push(occurrence)
-  }
-  return out
-}
-
-function expandAll(events, firstKey, lastKey) {
-  var out = []
-  for (var i = 0; i < events.length && out.length < maximumEventCount; i++) {
-    var expanded = events[i].repeatKind !== "" ? expandRecurring(events[i], firstKey, lastKey) : [events[i]]
-    for (var j = 0; j < expanded.length; j++) {
-      var days = eventDayKeys(expanded[j])
-      // `hey event list` is generous about its window; anything that does
-      // not actually touch the span is dropped here.
-      if (days.length > 0 && days[days.length - 1] >= firstKey && days[0] <= lastKey) out.push(expanded[j])
-    }
-  }
-  return out
-}
-
-// Files each event under every HEY week it touches, the way `hey event
-// week` would have answered.
-function bucketByWeek(events, weekKeys) {
-  var buckets = {}
-  for (var w = 0; w < weekKeys.length; w++) buckets[weekKeys[w]] = []
-  for (var i = 0; i < events.length; i++) {
-    var days = eventDayKeys(events[i])
-    var filed = {}
-    for (var d = 0; d < days.length; d++) {
-      var week = weekStartKey(days[d])
-      if (buckets[week] && !filed[week]) {
-        buckets[week].push(events[i])
-        filed[week] = true
-      }
-    }
-  }
-  return buckets
+  return (Array.isArray(calendars) ? calendars : []).filter(function(calendar) {
+    return calendar.owned === true
+  })
 }
 
 // Merges the per-week lists into one, dropping the copies a multi-day event
@@ -520,7 +229,7 @@ function daysBetween(fromKey, toKey) {
     - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / MS_PER_DAY)
 }
 
-// Weeks run Monday to Sunday, as HEY draws them, and a Monday is the
+// Weeks run Monday to Sunday, and a Monday is the
 // canonical name for a week in the event lines backends print.
 function weekStartKey(dayKey) {
   var date = dateFromKey(dayKey)
@@ -547,8 +256,8 @@ function weekKeysBetween(firstKey, lastKey) {
 // and both are right. One that ends exactly at midnight does not spill onto
 // the next day, which it only touches.
 //
-// An all-day event is not an instant at all: HEY stores it as a midnight-UTC
-// pair, and reading that as a moment would slide it onto yesterday for
+// An all-day event is a floating date; treating it as an instant would
+// slide it onto yesterday for
 // everyone west of Greenwich. So its dates are read off the text, never
 // converted. Multi-day ones end exclusively (a three-day trip is the 13th to
 // the 16th) while a single-day one repeats its own date.
@@ -740,26 +449,26 @@ function barWhen(event, nowMs, hour24) {
   var todayKey = keyForDate(new Date(nowMs))
   if (event.allDay || event.startMs === null) {
     var first = String(event.startsAt).substr(0, 10)
-    if (first <= todayKey) return "today"
+    if (first <= todayKey) return "aujourd’hui"
     return dayWord(first, todayKey)
   }
-  if (isNow(event, nowMs)) return event.endMs !== null ? "until " + formatTime(new Date(event.endMs), hour24) : "now"
+  if (isNow(event, nowMs)) return event.endMs !== null ? "jusqu’à " + formatTime(new Date(event.endMs), hour24) : "maintenant"
   var minutes = Math.max(0, Math.round((event.startMs - nowMs) / 60000))
-  if (minutes === 0) return "now"
-  if (minutes < 60) return "in " + minutes + "m"
+  if (minutes === 0) return "maintenant"
+  if (minutes < 60) return "dans " + minutes + " min"
   var startKey = keyForDate(new Date(event.startMs))
   var time = formatTime(new Date(event.startMs), hour24)
-  if (startKey === todayKey) return "at " + time
+  if (startKey === todayKey) return "à " + time
   var days = daysBetween(todayKey, startKey)
   return days < 7 ? dayWord(startKey, todayKey) + " " + time : dayWord(startKey, todayKey)
 }
 
-var SHORT_WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
-var SHORT_MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+var SHORT_WEEKDAYS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."]
+var SHORT_MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
 
 function dayWord(key, todayKey) {
   var days = daysBetween(todayKey, key)
-  if (days === 1) return "tomorrow"
+  if (days === 1) return "demain"
   var date = dateFromKey(key)
   if (days > 1 && days < 7) return SHORT_WEEKDAYS[date.getDay()]
   return date.getDate() + " " + SHORT_MONTHS[date.getMonth()]
@@ -776,7 +485,7 @@ function barEventLabel(event, nowMs, hour24, titleOnly) {
   return when === "" ? title : title + " · " + when
 }
 
-// When the bar starts naming an event: at its earliest HEY reminder, so an
+// When the bar starts naming an event: at its earliest reminder, so an
 // event you asked to hear about a day ahead is in the bar a day ahead. One
 // without reminders uses the lead time; an all-day one without reminders
 // is never named, the way a birthday nobody set an alert for stays quiet.
@@ -902,23 +611,23 @@ function dueReminders(events, nowMs, sinceMs, shown) {
   return out
 }
 
-// "In 30 minutes", "Now", "Tomorrow": what a notification leads with.
+// "In 30 minutes", "Maintenant", "Demain": what a notification leads with.
 function reminderLead(event, nowMs) {
   if (!event) return ""
   if (event.allDay) {
     var days = daysBetween(keyForDate(new Date(nowMs)), String(event.startsAt).substr(0, 10))
-    if (days <= 0) return "Today"
-    if (days === 1) return "Tomorrow"
-    return "In " + days + " days"
+    if (days <= 0) return "Aujourd’hui"
+    if (days === 1) return "Demain"
+    return "Dans " + days + " jours"
   }
   var minutes = Math.round((event.startMs - nowMs) / 60000)
-  if (minutes <= 0) return "Now"
-  if (minutes < 60) return "In " + minutes + " min"
+  if (minutes <= 0) return "Maintenant"
+  if (minutes < 60) return "Dans " + minutes + " min"
   var hours = Math.floor(minutes / 60)
   var rest = minutes % 60
-  if (hours < 24) return "In " + hours + " h" + (rest > 0 ? " " + rest + " min" : "")
+  if (hours < 24) return "Dans " + hours + " h" + (rest > 0 ? " " + rest + " min" : "")
   var d = Math.round(hours / 24)
-  return d === 1 ? "Tomorrow" : "In " + d + " days"
+  return d === 1 ? "Demain" : "Dans " + d + " jours"
 }
 
 function notificationBody(event, nowMs, hour24) {
@@ -928,9 +637,16 @@ function notificationBody(event, nowMs, hour24) {
   return lines.join("\n")
 }
 
-// The notification, and what to open if it is clicked. notify-send waits for
-// the answer, which is why this runs detached. The text and the link are
-// arguments, never interpolated.
+// The notification, and what to open if it is clicked. It waits for the
+// answer, which is why this runs detached.
+//
+// Event titles, calendars, places and links are private, and a process's
+// arguments are readable by every user on the machine (/proc/<pid>/cmdline),
+// so none of it goes on a command line: it travels in the environment, which
+// only this user can read, and the notification is sent over D-Bus from
+// Python instead of through notify-send, which only takes it as arguments.
+// The system Python, because it has PyGObject on Omarchy and a mise or
+// virtualenv one first on PATH may not.
 //
 // Every monitor's bar runs its own widget, and each would send the same
 // reminder. The first to create the reminder's marker directory claims it
@@ -940,15 +656,43 @@ function notificationBody(event, nowMs, hour24) {
 // The icon is a small calendar page in the event's calendar colour with its
 // day on it, written once per colour and day next to the markers.
 var notifyScript = [
-  "dir=\"${XDG_RUNTIME_DIR:-/tmp}/omacal\"",
-  "mkdir -p \"$dir/shown\" || exit 0",
-  "find \"$dir/shown\" -mindepth 1 -maxdepth 1 -mmin +2880 -exec rm -rf {} + 2>/dev/null",
-  "mkdir \"$dir/shown/$4\" 2>/dev/null || exit 0",
-  "icon=\"$dir/$5\"",
-  "[ -s \"$icon\" ] || printf '%s' \"$6\" > \"$icon\"",
-  "choice=$(notify-send --app-name='OmaCal' --icon=\"$icon\""
-    + " --action=default=Open \"$1\" \"$2\" 2>/dev/null)",
-  "if [ \"$choice\" = default ] && [ -n \"$3\" ]; then xdg-open \"$3\" >/dev/null 2>&1; fi"
+  "import os, shutil, sys, time",
+  "from gi.repository import Gio, GLib",
+  "env = {k: os.environ.pop('OMACAL_' + k, '') for k in ('TITLE', 'BODY', 'LINK', 'MARKER', 'ICON', 'SVG')}",
+  "base = os.path.join(os.environ.get('XDG_RUNTIME_DIR') or '/tmp', 'omacal')",
+  "shown = os.path.join(base, 'shown')",
+  "try:",
+  "    os.makedirs(shown, exist_ok=True)",
+  "    for name in os.listdir(shown):",
+  "        path = os.path.join(shown, name)",
+  "        if os.path.getmtime(path) < time.time() - 2 * 86400:",
+  "            shutil.rmtree(path, ignore_errors=True)",
+  "    os.mkdir(os.path.join(shown, env['MARKER']))",
+  "except OSError:",
+  "    sys.exit(0)",
+  "icon = os.path.join(base, env['ICON'])",
+  "if not os.path.isfile(icon) or os.path.getsize(icon) == 0:",
+  "    with open(icon, 'w') as f:",
+  "        f.write(env['SVG'])",
+  "loop = GLib.MainLoop()",
+  "sent = [None]",
+  "def answered(bus, sender, path, iface, signal, params, data):",
+  "    if params[0] != sent[0]: return",
+  "    if signal == 'ActionInvoked' and params[1] == 'default' and env['LINK']:",
+  "        Gio.AppInfo.launch_default_for_uri(env['LINK'], None)",
+  "    loop.quit()",
+  "try:",
+  "    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)",
+  "    bus.signal_subscribe('org.freedesktop.Notifications', 'org.freedesktop.Notifications', None,",
+  "        '/org/freedesktop/Notifications', None, Gio.DBusSignalFlags.NONE, answered, None)",
+  "    sent[0] = bus.call_sync('org.freedesktop.Notifications', '/org/freedesktop/Notifications',",
+  "        'org.freedesktop.Notifications', 'Notify',",
+  "        GLib.Variant('(susssasa{sv}i)', ('OmaCal', 0, icon, env['TITLE'], env['BODY'], ['default', 'Open'], {}, -1)),",
+  "        GLib.VariantType('(u)'), Gio.DBusCallFlags.NONE, -1, None).unpack()[0]",
+  "except GLib.Error:",
+  "    sys.exit(0)",
+  "GLib.timeout_add_seconds(86400, loop.quit)",
+  "loop.run()"
 ].join("\n")
 
 // A calendar page: the calendar's colour, a darker band with two rings,
@@ -972,16 +716,24 @@ function reminderMarker(key) {
 
 // `fallbackLink` is where a click goes when the event has no link of its
 // own: the backend's page for its day, if it has one. `remindMs` names the
-// reminder, so each of an event's reminders is claimed separately.
+// reminder, so each of an event's reminders is claimed separately. Returns a
+// command with no event text in it, and the environment that carries it.
 function notifyCommand(event, nowMs, hour24, fallbackLink, remindMs) {
   var link = event.joinUrl || event.url || safeUrl(fallbackLink)
   var firstDay = eventDayKeys(event)[0] || keyForDate(new Date(nowMs))
   var day = parseInt(firstDay.substr(8, 2), 10)
   var color = calendarColor(event.color, todayColor).replace("#", "")
-  return ["bash", "-c", notifyScript, "omacal",
-    event.title, notificationBody(event, nowMs, hour24), link,
-    reminderMarker(reminderKey(event, remindMs === undefined ? nowMs : remindMs)),
-    "icon-" + color + "-" + day + ".svg", notificationIcon(event.color, day)]
+  return {
+    command: ["/usr/bin/python3", "-c", notifyScript],
+    environment: {
+      OMACAL_TITLE: String(event.title || ""),
+      OMACAL_BODY: notificationBody(event, nowMs, hour24),
+      OMACAL_LINK: link || "",
+      OMACAL_MARKER: reminderMarker(reminderKey(event, remindMs === undefined ? nowMs : remindMs)),
+      OMACAL_ICON: "icon-" + color + "-" + day + ".svg",
+      OMACAL_SVG: notificationIcon(event.color, day)
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1024,6 +776,21 @@ function matchName(word, names, minimum) {
 function parseDay(value, todayKey) {
   var text = String(value === undefined || value === null ? "" : value)
     .toLowerCase().replace(/[,.]/g, " ").replace(/\s+/g, " ").replace(/^ | $/g, "")
+  // Accept French date input while retaining the original English forms.
+  text = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[’']/g, "")
+  var frenchWords = {
+    aujourdhui: "today", demain: "tomorrow", hier: "yesterday",
+    dimanche: "sunday", dim: "sunday", lundi: "monday", lun: "monday",
+    mardi: "tuesday", mercredi: "wednesday", mer: "wednesday",
+    jeudi: "thursday", jeu: "thursday", vendredi: "friday", ven: "friday", samedi: "saturday", sam: "saturday",
+    janvier: "january", janv: "january", fevrier: "february", fevr: "february",
+    mars: "march", avril: "april", avr: "april", mai: "may", juin: "june",
+    juillet: "july", juil: "july", juill: "july", aout: "august", septembre: "september", sept: "september",
+    octobre: "october", novembre: "november", decembre: "december", dec: "december",
+    dans: "in", jour: "day", jours: "days", j: "d", semaine: "week", semaines: "weeks", sem: "weeks"
+  }
+  text = text.replace(/[a-z]+/g, function(word) { return frenchWords[word] || word })
+  text = text.replace(/^(\w+) prochain$/, "next $1")
   if (!isDayKey(todayKey)) return ""
   if (text === "" || text === "today" || text === "tod") return todayKey
   if (text === "tomorrow" || text === "tmr" || text === "tom") return addDays(todayKey, 1)
@@ -1121,7 +888,7 @@ function cycle(list, current, delta) {
 }
 
 // The next half hour from now, which is what a fresh event on today starts at.
-// Other days start at nine, the way HEY's own form fills in.
+// Other days start at nine.
 function suggestedStart(dayKey, now) {
   if (dayKey !== keyForDate(now)) return "09:00"
   var minutes = now.getHours() * 60 + now.getMinutes()
@@ -1138,28 +905,29 @@ var reminderChoices = ["", "10m", "30m", "1h", "1d"]
 function validateEvent(form) {
   var f = form || {}
   var title = String(f.title || "").replace(/^\s+|\s+$/g, "")
-  if (title === "") return { error: "Give the event a title." }
-  if (title.length > 256) return { error: "That title is too long." }
-  if (!isDayKey(f.date)) return { error: "Pick a day." }
+  if (title === "") return { error: "Donnez un titre à l’événement." }
+  if (title.length > 256) return { error: "Le titre est trop long." }
+  if (!isDayKey(f.date)) return { error: "Choisissez une date." }
 
   var request = { title: title, date: f.date, allDay: f.allDay === true, startTime: "", endTime: "",
-    endDate: f.date, calendarId: Number(f.calendarId) > 0 ? Math.round(Number(f.calendarId)) : 0,
+    endDate: f.date, calendarId: typeof f.calendarId === "string" ? boundedString(f.calendarId, 1024)
+      : (Number(f.calendarId) > 0 ? Math.round(Number(f.calendarId)) : 0),
     location: String(f.location || "").replace(/^\s+|\s+$/g, "").substr(0, 256), remind: "" }
 
   if (request.allDay) {
     if (f.endDate && f.endDate !== f.date) {
-      if (!isDayKey(f.endDate) || f.endDate < f.date) return { error: "It has to end after it starts." }
+      if (!isDayKey(f.endDate) || f.endDate < f.date) return { error: "La fin doit être après le début." }
       request.endDate = f.endDate
     }
   } else {
     var start = parseClock(f.startTime)
-    if (start === "") return { error: "The start time is not a time." }
+    if (start === "") return { error: "L’heure de début est invalide." }
     request.startTime = start
     var endText = String(f.endTime || "").replace(/\s+/g, "")
     if (endText !== "") {
       var end = parseClock(endText)
-      if (end === "") return { error: "The end time is not a time." }
-      if (clockMinutes(end) === clockMinutes(start)) return { error: "It has to end after it starts." }
+      if (end === "") return { error: "L’heure de fin est invalide." }
+      if (clockMinutes(end) === clockMinutes(start)) return { error: "La fin doit être après le début." }
       // An end before the start is read as the next morning, the way you
       // mean "22:00 to 01:00".
       if (clockMinutes(end) < clockMinutes(start)) request.endDate = addDays(f.date, 1)
@@ -1189,7 +957,7 @@ function formatTime(date, hour24) {
 
 function eventRangeLabel(event, hour24) {
   if (!event) return ""
-  if (event.allDay) return "All day"
+  if (event.allDay) return "Toute la journée"
   if (event.startMs === null) return ""
   var start = formatTime(new Date(event.startMs), hour24)
   if (event.endMs === null || event.endMs <= event.startMs) return start
@@ -1197,34 +965,26 @@ function eventRangeLabel(event, hour24) {
 }
 
 // What the day view prints above a title. A multi-day event names the part
-// of it this day holds: "from 09:00", "until 10:00", or "all day".
+// of it this day holds: "from 09:00", "until 10:00", or "toute la journée".
 function eventTimeOnDay(event, dayKey, hour24) {
   if (!event) return ""
   if (event.allDay) return ""
   switch (spanPosition(event, dayKey)) {
-  case "first": return "from " + formatTime(new Date(event.startMs), hour24)
-  case "last": return "until " + formatTime(new Date(event.endMs), hour24)
-  case "middle": return "all day"
+  case "first": return "à partir de " + formatTime(new Date(event.startMs), hour24)
+  case "last": return "jusqu’à " + formatTime(new Date(event.endMs), hour24)
+  case "middle": return "toute la journée"
   default: return eventRangeLabel(event, hour24)
   }
 }
 
-function durationLabel(ms) {
-  var minutes = Math.max(0, Math.floor(Number(ms) / 60000))
-  var hours = Math.floor(minutes / 60)
-  var rest = minutes % 60
-  if (hours === 0) return rest + " min"
-  return hours + " h" + (rest > 0 ? " " + pad2(rest) : "")
-}
-
-// "Today", "Tomorrow", "Yesterday", or how far away it is.
+// "Aujourd’hui", "Demain", "Hier", or how far away it is.
 function relativeDayLabel(dayKey, todayKey) {
   var delta = daysBetween(todayKey, dayKey)
-  if (delta === 0) return "Today"
-  if (delta === 1) return "Tomorrow"
-  if (delta === -1) return "Yesterday"
-  if (delta > 1) return "In " + delta + " days"
-  return (-delta) + " days ago"
+  if (delta === 0) return "Aujourd’hui"
+  if (delta === 1) return "Demain"
+  if (delta === -1) return "Hier"
+  if (delta > 1) return "Dans " + delta + " jours"
+  return (-delta) + " jours plus tôt"
 }
 
 // External calendars come through as the address they were subscribed from.
@@ -1238,39 +998,22 @@ function calendarLabel(name) {
 }
 
 // ---------------------------------------------------------------------------
-// Colors, in HEY's palette
+// Calendar colors
 // ---------------------------------------------------------------------------
 
-// HEY names its calendar colors rather than giving hex. These are the fills
-// HEY's own dark calendar paints (blue, red, gold and teal sampled from it),
-// with the rest matched in the same key: light pastels that carry dark text.
-var calendarPalette = {
-  "black": "#c3cad3",
-  "blue": "#6baffc",
-  "brown": "#dcc1a0",
-  "gold": "#f6da93",
-  "green": "#a9e8a0",
-  "orange": "#ffc08a",
-  "pink": "#ffb0d9",
-  "purple": "#cdb6fb",
-  "red": "#fe9a99",
-  "teal": "#aefbec",
-  "yellow": "#fbf09a"
-}
-
-// The ink HEY sets on those fills.
+// Dark ink on calendar fills.
 var calendarInk = "#1b2632"
 
-// HEY's "today" marker: the warm orange blob behind the day's name.
+// The "today" marker: the warm orange blob behind the day's name.
 var todayColor = "#fcb55b"
 
-// Other services give colors as hex, which pass through as they are.
+// Google's hex colors pass through as they are.
 // Anything else falls through to the caller's accent, so a calendar the
 // plugin has never heard of is never invisible.
 function calendarColor(name, fallback) {
   var key = String(name || "").toLowerCase().replace(/^\s+|\s+$/g, "")
   if (/^#[0-9a-f]{6}$/.test(key)) return key
-  return calendarPalette[key] || fallback
+  return fallback
 }
 
 if (typeof module !== "undefined") {
@@ -1284,17 +1027,6 @@ if (typeof module !== "undefined") {
     parseRangeOutput: parseRangeOutput,
     parseCalendars: parseCalendars,
     writableCalendars: writableCalendars,
-    parseCurrentTrack: parseCurrentTrack,
-    normalizeTimeTrack: normalizeTimeTrack,
-    parseTimeTracks: parseTimeTracks,
-    tracksByDay: tracksByDay,
-    trackedOnDay: trackedOnDay,
-    newestTrackSince: newestTrackSince,
-    repeatUntil: repeatUntil,
-    repeatTimes: repeatTimes,
-    expandRecurring: expandRecurring,
-    expandAll: expandAll,
-    bucketByWeek: bucketByWeek,
     mergeWeeks: mergeWeeks,
     parseHiddenCalendars: parseHiddenCalendars,
     withoutHidden: withoutHidden,
@@ -1342,11 +1074,9 @@ if (typeof module !== "undefined") {
     formatTime: formatTime,
     eventRangeLabel: eventRangeLabel,
     eventTimeOnDay: eventTimeOnDay,
-    durationLabel: durationLabel,
     relativeDayLabel: relativeDayLabel,
     calendarLabel: calendarLabel,
     calendarColor: calendarColor,
-    calendarPalette: calendarPalette,
     calendarInk: calendarInk,
     todayColor: todayColor,
     reminderChoices: reminderChoices

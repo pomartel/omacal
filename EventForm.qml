@@ -3,15 +3,13 @@ import qs.Commons
 import qs.Ui
 import "Calendar.js" as Cal
 
-// A new event, with the fields HEY's own quick form asks for: a title,
+// A new event, with the fields needed by Google Agenda: a title,
 // which calendar, which day, when, where, and a reminder. The calendar
 // panel's + button and the Alt+Shift+Space quick-add card are both this.
 //
 // Days and times are typed, not picked: "fri", "tomorrow", "3 oct" for the
 // day; "9", "930", "9:30pm", "21.30" for times. An end earlier than the
-// start is read as the next morning. The event
-// is created through `hey event add`, so HEY applies its own defaults to
-// anything left blank.
+// start is read as the next morning. The event is created through gws.
 //
 // Built to be used without a mouse. Tab and Shift+Tab walk every field,
 // the calendar row and the reminder row included; on those rows the arrow
@@ -28,7 +26,7 @@ Item {
   property string todayKey: ""
   readonly property string resolvedDay: Cal.parseDay(dateField.text, todayKey !== "" ? todayKey : Cal.keyForDate(new Date()))
   property var calendars: []
-  property int defaultCalendarId: 0
+  property var defaultCalendarId: 0
   property bool busy: false
   // `error` comes from whoever runs the command; `localError` is the form's
   // own complaint about what was typed, and wins while it stands.
@@ -49,7 +47,7 @@ Item {
   property alias startInput: startField.text
   property alias endInput: endField.text
   property alias locationInput: locationField.text
-  property int calendarId: 0
+  property var calendarId: 0
   property bool allDay: false
   property string remind: "30m"
 
@@ -67,16 +65,16 @@ Item {
 
   // What the keys do where the focus is, one line under the form.
   readonly property string keyHint: {
-    if (calendarRow.activeFocus) return "←→ calendar · Tab next · Enter add · Esc cancel"
-    if (remindRow.activeFocus) return "←→ reminder · Tab next · Enter add · Esc cancel"
-    if (allDayRow.activeFocus) return "Space all day · Tab next · Enter add · Esc cancel"
-    if (dateField.activeFocus) return "↑↓ day, Shift a week · Tab next · Alt+←→ calendar · Enter add"
-    if (startField.activeFocus || endField.activeFocus) return "↑↓ 15 min · Tab next · Alt+←→ calendar · Enter add"
-    return "Tab next field · Alt+←→ calendar · Alt+↑↓ reminder · Alt+A all day · Enter add"
+    if (calendarRow.activeFocus) return "←→ calendrier · Tab suivant · Entrée ajouter · Échap annuler"
+    if (remindRow.activeFocus) return "←→ rappel · Tab suivant · Entrée ajouter · Échap annuler"
+    if (allDayRow.activeFocus) return "Espace journée entière · Tab suivant · Entrée ajouter · Échap annuler"
+    if (dateField.activeFocus) return "↑↓ jour, Maj semaine · Tab suivant · Alt+←→ calendrier · Entrée ajouter"
+    if (startField.activeFocus || endField.activeFocus) return "↑↓ 15 min · Tab suivant · Alt+←→ calendrier · Entrée ajouter"
+    return "Tab champ suivant · Alt+←→ calendrier · Alt+↑↓ rappel · Alt+A journée entière · Entrée ajouter"
   }
 
   readonly property string dayLabel: Cal.isDayKey(resolvedDay)
-    ? Qt.formatDate(Cal.dateFromKey(resolvedDay), "dddd d MMMM yyyy")
+    ? Cal.dateFromKey(resolvedDay).toLocaleDateString(Qt.locale("fr_CA"), "dddd d MMMM yyyy")
     : ""
 
   implicitHeight: formColumn.implicitHeight
@@ -109,9 +107,9 @@ Item {
 
   function dayText(day) {
     var today = currentToday()
-    if (day === today) return "today"
-    if (day === Cal.addDays(today, 1)) return "tomorrow"
-    return Qt.formatDate(Cal.dateFromKey(day), "d MMM yyyy")
+    if (day === today) return "aujourd’hui"
+    if (day === Cal.addDays(today, 1)) return "demain"
+    return Cal.dateFromKey(day).toLocaleDateString(Qt.locale("fr_CA"), "d MMM yyyy")
   }
 
   function pickCalendar(preferred) {
@@ -124,7 +122,7 @@ Item {
     if (root.busy) return
     root.localError = ""
     if (!Cal.isDayKey(root.resolvedDay)) {
-      root.localError = "“" + dateField.text + "” is not a day I know. Try fri, tomorrow or 3 oct."
+      root.localError = "Date inconnue : « " + dateField.text + " ». Essayez vendredi, demain ou 3 oct."
       return
     }
     root.submitted({
@@ -204,7 +202,7 @@ Item {
     event.accepted = true
   }
 
-  onCalendarsChanged: if (root.calendarId === 0) root.calendarId = pickCalendar(root.defaultCalendarId)
+  onCalendarsChanged: root.calendarId = pickCalendar(root.calendarId || root.defaultCalendarId)
 
   Column {
     id: formColumn
@@ -213,7 +211,7 @@ Item {
 
     Text {
       textFormat: Text.PlainText
-      text: "NEW EVENT"
+      text: "NOUVEL ÉVÉNEMENT"
       color: Qt.darker(root.foreground, 1.5)
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
@@ -223,7 +221,7 @@ Item {
     TextField {
       id: titleField
       width: parent.width
-      placeholderText: "What's happening?"
+      placeholderText: "Quel est l’événement ?"
       foreground: root.foreground
       font.family: root.fontFamily
       Keys.onPressed: function(event) { root.handleKey(event, titleField) }
@@ -235,7 +233,7 @@ Item {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: "ON"
+        text: "LE"
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -246,7 +244,7 @@ Item {
         id: dateField
         width: Style.space(130)
         anchors.verticalCenter: parent.verticalCenter
-        placeholderText: "today"
+        placeholderText: "aujourd’hui"
         foreground: root.foreground
         font.family: root.fontFamily
         Keys.onPressed: function(event) { root.handleKey(event, dateField) }
@@ -256,14 +254,14 @@ Item {
       Text {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: root.dayLabel !== "" ? root.dayLabel : "Not a day"
+        text: root.dayLabel !== "" ? root.dayLabel : "Date invalide"
         color: root.dayLabel !== "" ? Qt.darker(root.foreground, 1.4) : Color.urgent
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
       }
     }
 
-    // Calendars as HEY paints them: a pastel pill each, the chosen one
+    // Calendars: a pastel pill each, the chosen one
     // outlined. A list this short reads faster as colors than as a menu.
     // Tab lands on the row as a whole, and the arrow keys pick.
     Item {
@@ -334,7 +332,7 @@ Item {
         id: allDayButton
         anchors.fill: parent
         hasCursor: allDayRow.activeFocus
-        text: "All day"
+        text: "Toute la journée"
         iconText: root.allDay ? "󰄵" : "󰄱"
         bordered: true
         selected: root.allDay
@@ -349,7 +347,7 @@ Item {
         visible: !root.allDay
         anchors.verticalCenter: parent.verticalCenter
         leftPadding: Style.space(6)
-        text: "FROM"
+        text: "DE"
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -370,7 +368,7 @@ Item {
       Text {
         visible: !root.allDay
         anchors.verticalCenter: parent.verticalCenter
-        text: "TO"
+        text: "À"
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -392,7 +390,7 @@ Item {
     TextField {
       id: locationField
       width: parent.width
-      placeholderText: "Where? (optional)"
+      placeholderText: "Lieu (facultatif)"
       foreground: root.foreground
       font.family: root.fontFamily
       Keys.onPressed: function(event) { root.handleKey(event, locationField) }
@@ -405,7 +403,7 @@ Item {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: "REMIND"
+        text: "RAPPEL"
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -420,11 +418,11 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         focusable: false
         options: [
-          { value: "", label: "None" },
-          { value: "10m", label: "10m" },
-          { value: "30m", label: "30m" },
-          { value: "1h", label: "1h" },
-          { value: "1d", label: "1d" }
+          { value: "", label: "Aucun" },
+          { value: "10m", label: "10 min" },
+          { value: "30m", label: "30 min" },
+          { value: "1h", label: "1 h" },
+          { value: "1d", label: "1 j" }
         ]
         value: root.remind
         // Lights the chosen reminder while the row has the keyboard.
@@ -447,7 +445,7 @@ Item {
         anchors.right: cancelButton.left
         anchors.rightMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        text: root.busy ? "Adding…" : (root.localError !== "" ? root.localError : root.error)
+        text: root.busy ? "Ajout…" : (root.localError !== "" ? root.localError : root.error)
         color: root.busy ? Qt.darker(root.foreground, 1.4) : Color.urgent
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -461,7 +459,7 @@ Item {
         anchors.right: createButton.left
         anchors.rightMargin: Style.space(6)
         anchors.verticalCenter: parent.verticalCenter
-        text: "Cancel"
+        text: "Annuler"
         foreground: root.foreground
         accent: root.accent
         fontFamily: root.fontFamily
@@ -472,7 +470,7 @@ Item {
         id: createButton
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        text: "Add event"
+        text: "Ajouter"
         iconText: "󰐕"
         bordered: true
         enabled: !root.busy

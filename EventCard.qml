@@ -3,12 +3,12 @@ import qs.Commons
 import qs.Ui
 import "Calendar.js" as Cal
 
-// One event in the day view, drawn the way HEY draws it: a block in the
+// One event in the day view, drawn as a block in the
 // calendar's pastel with dark ink, the time small above a bold title.
-// All-day events, and the middle days of something longer, are HEY's thin
+// All-day events, and the middle days of something longer, use thin
 // pill instead, since there is no time to put above them.
 //
-// Clicking opens the meeting link when there is one and the event in HEY
+// Clicking opens the meeting link when there is one and the event in Google Agenda
 // otherwise. A one-off event carries a delete button on hover, which asks
 // once before doing anything; a repeating one does not, because deleting by
 // id would take the whole series with it.
@@ -34,7 +34,7 @@ Item {
   readonly property bool past: Cal.hasEnded(event, nowMs)
   readonly property bool current: Cal.isNow(event, nowMs)
   readonly property bool declined: Cal.isDeclined(event)
-  readonly property bool deletable: !!event && !event.recurring && /^\d+$/.test(String(event.seriesId))
+  readonly property bool deletable: !!event && event.writable !== false && !event.recurring && String(event.seriesId) !== ""
   readonly property string timeText: event ? Cal.eventTimeOnDay(event, dayKey, hour24) : ""
   readonly property string metaText: {
     if (!event) return ""
@@ -45,6 +45,12 @@ Item {
   }
 
   property bool confirming: false
+  onBusyChanged: if (busy) root.confirming = true
+
+  function confirmDeletion() {
+    if (root.busy || !root.deletable) return
+    root.deleteRequested()
+  }
 
   implicitWidth: parent ? parent.width : Style.space(400)
   implicitHeight: Math.max(confirming ? confirmDelete.implicitHeight + Style.space(10) : 0, pill
@@ -59,7 +65,7 @@ Item {
     radius: root.pill ? height / 2 : Math.max(3, Style.cornerRadius)
     color: root.fill
     // The event under way gets a ring in the theme's attention color, the
-    // one mark here that is not HEY's own.
+    // highlighting the current event.
     border.width: root.current ? 2 : 0
     border.color: Color.urgent
 
@@ -96,7 +102,7 @@ Item {
       id: pillMeta
       textFormat: Text.PlainText
       anchors.verticalCenter: parent.verticalCenter
-      text: root.position === "middle" ? "continues" : Cal.calendarLabel(root.event ? root.event.calendar : "")
+      text: root.position === "middle" ? "suite" : Cal.calendarLabel(root.event ? root.event.calendar : "")
       color: Qt.rgba(0.106, 0.149, 0.196, 0.6)
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
@@ -129,7 +135,7 @@ Item {
       Text {
         visible: root.current
         textFormat: Text.PlainText
-        text: "NOW"
+        text: "EN COURS"
         color: root.ink
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -178,8 +184,8 @@ Item {
         var lines = [Cal.eventRangeLabel(root.event, root.hour24) + " · " + root.event.title]
         if (root.event.calendar !== "") lines.push(root.event.calendar)
         if (root.event.location !== "") lines.push(root.event.location)
-        if (root.event.recurring) lines.push("Repeats")
-        lines.push(root.event.joinUrl !== "" ? (root.event.joinTitle || "Click to join") : "Click to open")
+        if (root.event.recurring) lines.push("Récurrent")
+        lines.push(root.event.joinUrl !== "" ? (root.event.joinTitle || "Cliquer pour rejoindre") : "Cliquer pour ouvrir")
         return lines.join("\n")
       }
     }
@@ -207,7 +213,7 @@ Item {
 
       PanelToolTip {
         visible: deleteMouse.containsMouse
-        text: "Delete event"
+        text: "Supprimer l’événement"
         fontFamily: root.fontFamily
       }
     }
@@ -226,7 +232,7 @@ Item {
       textFormat: Text.PlainText
       width: parent.width - cancelDelete.width - confirmDelete.width - parent.spacing * 2
       anchors.verticalCenter: parent.verticalCenter
-      text: root.busy ? "Deleting…" : "Delete “" + (root.event ? root.event.title : "") + "”?"
+      text: root.busy ? "Suppression…" : "Supprimer « " + (root.event ? root.event.title : "") + " » ?"
       color: root.ink
       font.family: root.fontFamily
       font.pixelSize: Style.font.body
@@ -236,7 +242,7 @@ Item {
     Button {
       id: cancelDelete
       anchors.verticalCenter: parent.verticalCenter
-      text: "Keep"
+      text: "Conserver"
       enabled: !root.busy
       foreground: root.ink
       fontFamily: root.fontFamily
@@ -246,13 +252,13 @@ Item {
     Button {
       id: confirmDelete
       anchors.verticalCenter: parent.verticalCenter
-      text: "Delete"
+      text: "Supprimer"
       enabled: !root.busy
       bordered: true
       foreground: root.ink
       accent: Color.urgent
       fontFamily: root.fontFamily
-      onClicked: root.deleteRequested()
+      onClicked: root.confirmDeletion()
     }
   }
 }

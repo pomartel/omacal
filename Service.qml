@@ -7,14 +7,14 @@ import "ShortcutModel.js" as ShortcutModel
 // close it again.
 //
 // The shortcut is the `quickAddShortcut` setting on the widget's entry in
-// shell.json, so it is set where every other HEY Calendar setting is.
+// shell.json, so it is set where every other calendar setting is.
 Item {
   id: root
 
   property var shell: null
   property var manifest: null
 
-  readonly property string moduleName: "crmne.omacal"
+  readonly property string moduleName: "pomartel.omacal"
 
   readonly property var widgetEntry: {
     var config = root.shell ? root.shell.barConfig : null
