@@ -112,3 +112,7 @@ tests/qml-smoke    # Interface, démarrage hors ligne et suppression simulée
 
 Les tests QML utilisent un faux `gws` et ne modifient pas votre calendrier.
 Voir [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) et [LICENSE](LICENSE).
+
+## Intégration upstream du 3 octobre 2026
+
+Les rappels utilisent une déduplication atomique entre écrans, une icône de la couleur du calendrier et transportent leur texte hors des arguments de processus. Les changements HEY de fuseaux, d’édition et de dates de fin inclusives ne s’appliquent pas au backend Google : les dates de fin Google restent exclusives et les événements s’ouvrent dans Google Agenda.
