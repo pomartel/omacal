@@ -231,12 +231,12 @@ Item {
     var today = currentToday()
     if (day === today) return "aujourd’hui"
     if (day === Cal.addDays(today, 1)) return "demain"
-    return Qt.formatDate(Cal.dateFromKey(day), "d MMM yyyy")
+    return Cal.dateFromKey(day).toLocaleDateString(Qt.locale("fr_CA"), "d MMM yyyy")
   }
 
   // The until field is read from the start, so it is always written out.
   function untilText(day) {
-    return Qt.formatDate(Cal.dateFromKey(day), "d MMM yyyy")
+    return Cal.dateFromKey(day).toLocaleDateString(Qt.locale("fr_CA"), "d MMM yyyy")
   }
 
   function pickCalendar(preferred) {

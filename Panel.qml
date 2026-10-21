@@ -75,7 +75,7 @@ Panel {
   // convention. Clicking the grid's "W" heading writes the choice back to
   // shell.json.
   readonly property int weekStart: Model.normalizedWeekStart(setting("weekStartDay", null), Qt.locale().firstDayOfWeek)
-  // The interface is English throughout, so day names are not taken from the
+  // The interface is French throughout, so day names are not taken from the
   // system locale. Where the week starts still is: that is a regional
   // convention rather than a translation, and it stays overridable above.
   readonly property var labelLocale: Qt.locale("fr_CA")
@@ -1054,7 +1054,7 @@ Panel {
                 // "MAY 2026" and a "SEPTEMBER 2026".
                 width: Style.space(130)
                 horizontalAlignment: Text.AlignHCenter
-                text: Qt.formatDate(root.viewDate, "MMMM yyyy").toUpperCase()
+                text: root.viewDate.toLocaleDateString(root.labelLocale, "MMMM yyyy").toUpperCase()
                 color: Qt.darker(root.contentForeground, 1.4)
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.body
@@ -1158,7 +1158,7 @@ Panel {
                   text: {
                     var label = Cal.relativeDayLabel(root.selectedKey, root.todayKey)
                     var date = Cal.dateFromKey(root.selectedKey)
-                    return root.selectedIsToday ? label : label + " · " + Qt.formatDate(date, "d MMMM")
+                    return root.selectedIsToday ? label : label + " · " + date.toLocaleDateString(root.labelLocale, "d MMMM")
                   }
                   color: Qt.darker(root.contentForeground, 1.5)
                   font.family: root.contentFontFamily
