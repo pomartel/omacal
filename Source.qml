@@ -63,7 +63,9 @@ Item {
   }
 
   property bool cacheLoaded: false
+  property int contextRevision: 0
   onContextChanged: {
+    contextRevision++;
     cacheLoaded = false;
     mode = ""; checked = false; loading = false; loaded = false;
     weekCache = ({}); calendars = []; queuedWeeks = []; fetchingWeeks = [];
@@ -104,6 +106,7 @@ Item {
     restoreLocalCache();
     if (!root.enabled || !root.backend || versionProcess.running) return
     versionProcess.command = command(root.backend.probeCommand)
+    versionProcess.requestRevision = root.contextRevision
     versionProcess.running = true
   }
 
@@ -284,13 +287,17 @@ Item {
   // signed-out service is said plainly rather than shown as empty days.
   Process {
     id: versionProcess
+    property int requestRevision: -1
+    // Context changes terminate the old probe asynchronously. Restart only
+    // once it has exited, and never report its empty output as an error.
+    onExited: if (requestRevision !== root.contextRevision && root.enabled) Qt.callLater(root.probe)
     property string requestContext: ""
     onStarted: requestContext = JSON.stringify(root.context)
     running: false
     command: []
     stdout: StdioCollector {
       onStreamFinished: {
-        if (!root.enabled || versionProcess.requestContext !== JSON.stringify(root.context)) return
+        if (!root.enabled || versionProcess.requestRevision !== root.contextRevision || versionProcess.requestContext !== JSON.stringify(root.context)) return
         var probed = root.backend.probe(text)
         root.version = probed.version || ""
         root.account = probed.account || ""

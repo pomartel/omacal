@@ -10,6 +10,7 @@ ShellRoot {
   id: root
   property int phase: 0
   property var googleEvent: null
+  property bool probeRestarted: false
   readonly property string today: Cal.keyForDate(new Date())
 
   function fail(message) {
@@ -23,6 +24,7 @@ ShellRoot {
 
   function check() {
     if (root.phase !== 0) return
+    if (!root.probeRestarted || !restartedSource.ready) return
     var hey = bySource("hey"), google = bySource("google"), feeds = bySource("feeds")
     if (hey.length === 0 || google.length === 0 || feeds.length === 0) return
     var keys = widget.calendars.map(function(c) { return c.key })
@@ -56,6 +58,30 @@ ShellRoot {
     onWriteFinished: function(ok, message) {
       if (!ok) { root.fail("write " + root.phase + ": " + message); return }
       root.phase++
+    }
+  }
+
+  // Reassigning even an equivalent context while a probe runs must not
+  // leave the source with the cancelled process's empty output.
+  Plugin.Source {
+    id: restartedSource
+    enabled: true
+    readsWeeks: false
+    liveSync: false
+    context: ({ generation: 1 })
+    backend: ({
+      info: { id: "restart-test", name: "Restart test", capabilities: {} },
+      probeCommand: ["/usr/bin/python3", "-I", "-c", "import time; time.sleep(1); print('ready')"],
+      probe: function(output) { return output.trim() === "ready" ? {mode: "api"} : {mode: "", error: "Cancelled probe was consumed"} },
+      calendarsCommand: ["/usr/bin/printf", "[]"]
+    })
+    onErrorChanged: if (error !== "") root.fail(error)
+  }
+  Timer {
+    interval: 100; running: true
+    onTriggered: {
+      restartedSource.context = { generation: 1 }
+      root.probeRestarted = true
     }
   }
 
