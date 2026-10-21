@@ -1,6 +1,10 @@
 // Plain node, no dependencies: `tests/run` runs this in several timezones.
 var assert = require("assert")
-var Cal = require("../Calendar.js")
+var Hey = require("../Calendar.js")
+var Backend = require("../backends/Hey.js")
+var Api = require("../backends/HeyApi.js")
+var Places = require("../Places.js")
+var Edit = require("../KeyEdit.js")
 
 var tz = process.env.TZ || "local"
 var failures = 0
@@ -24,7 +28,7 @@ function timed(id, title, y, m, d, h, min, durationMin, extra) {
     calendar: "Work", color: "blue", reminders: []
   }
   for (var k in extra || {}) raw[k] = extra[k]
-  return Cal.normalizeEvent(raw)
+  return Hey.normalizeEvent(raw)
 }
 
 function allDay(id, title, startKey, endKey, extra) {
@@ -34,38 +38,63 @@ function allDay(id, title, startKey, endKey, extra) {
     calendar: "Relationships", color: "red", reminders: []
   }
   for (var k in extra || {}) raw[k] = extra[k]
-  return Cal.normalizeEvent(raw)
+  return Hey.normalizeEvent(raw)
 }
+
+// ---- HEY backend: versions
+
+function mode(text) { return Backend.probe(text).mode }
+
+test("Omarchy's packaged 1.3.0 reads by list, 1.4+ by week", function() {
+  assert.strictEqual(mode("hey version 1.3.0"), "list")
+  assert.strictEqual(mode("hey version 1.3.9"), "list")
+  assert.strictEqual(mode("hey version 1.4.0"), "week")
+  assert.strictEqual(mode("hey version 1.7.0"), "week")
+  assert.strictEqual(mode("hey version 2.0.0"), "week")
+})
+
+test("older or missing CLIs are refused, unreadable versions assumed new", function() {
+  assert.strictEqual(mode("hey version 1.2.9"), "")
+  assert.strictEqual(mode(""), "")
+  assert.strictEqual(mode("hey version dev"), "week")
+})
+
+test("list mode pads the window a day each side and names the span", function() {
+  var cmd = Backend.fetchCommand("list", ["2026-10-05", "2026-09-28"])
+  assert.deepStrictEqual(cmd.slice(-4), ["2026-09-28", "2026-10-11", "2026-09-27", "2026-10-12"])
+})
 
 // ---- Days
 
 test("all-day events stay on their date in every zone", function() {
   var e = allDay(1, "Bday", "2026-09-26")
-  assert.deepStrictEqual(Cal.eventDayKeys(e), ["2026-09-26"])
+  assert.deepStrictEqual(Hey.eventDayKeys(e), ["2026-09-26"])
 })
 
-test("multi-day all-day events end exclusively", function() {
+// HEY stores a trip from the 13th to the 16th with the 16th as its end, and
+// draws it on all four days (`hey event day` lists it on the 16th).
+test("multi-day all-day events end on their last day", function() {
   var e = allDay(1, "Trip", "2026-10-13", "2026-10-16")
-  assert.deepStrictEqual(Cal.eventDayKeys(e), ["2026-10-13", "2026-10-14", "2026-10-15"])
+  assert.deepStrictEqual(Hey.eventDayKeys(e), ["2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"])
 })
 
 test("timed events span every local day they cover", function() {
   var e = timed(1, "Train", 2026, 10, 6, 9, 0, (5 * 24 + 1) * 60)
-  var keys = Cal.eventDayKeys(e)
+  var keys = Hey.eventDayKeys(e)
   assert.strictEqual(keys[0], "2026-10-06")
   assert.strictEqual(keys[keys.length - 1], "2026-10-11")
-  assert.strictEqual(Cal.spanPosition(e, "2026-10-06"), "first")
-  assert.strictEqual(Cal.spanPosition(e, "2026-10-08"), "middle")
-  assert.strictEqual(Cal.spanPosition(e, "2026-10-11"), "last")
+  assert.strictEqual(Hey.spanPosition(e, "2026-10-06"), "first")
+  assert.strictEqual(Hey.spanPosition(e, "2026-10-08"), "middle")
+  assert.strictEqual(Hey.spanPosition(e, "2026-10-11"), "last")
 })
 
 test("a timed event ending at midnight does not spill into the next day", function() {
   var e = timed(1, "Late", 2026, 9, 28, 22, 0, 120)
-  assert.deepStrictEqual(Cal.eventDayKeys(e), ["2026-09-28"])
+  assert.deepStrictEqual(Hey.eventDayKeys(e), ["2026-09-28"])
 })
 
-test("weekKeysBetween names Monday weeks", function() {
-  assert.deepStrictEqual(Cal.weekKeysBetween("2026-08-30", "2026-10-10"),
+test("weekKeysBetween names HEY's Monday weeks", function() {
+  assert.deepStrictEqual(Hey.weekKeysBetween("2026-08-30", "2026-10-10"),
     ["2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28", "2026-10-05"])
 })
 
@@ -77,7 +106,7 @@ test("chips group a day by color with counts, in the day's order", function() {
     timed(2, "Standup", 2026, 9, 28, 9, 0, 15),
     timed(3, "Dinner", 2026, 9, 28, 18, 30, 60, { color: "red", calendar: "Relationships" })
   ]
-  var chips = Cal.dayChips(Cal.eventsForDay(events, "2026-09-28"), 3)
+  var chips = Hey.dayChips(Hey.eventsForDay(events, "2026-09-28"), 3)
   assert.deepStrictEqual(chips.map(function(c) { return c.color + ":" + c.count }), ["blue:2", "red:1"])
 })
 
@@ -86,7 +115,7 @@ test("past the limit, the last chip is +N for the rest", function() {
   var events = colors.map(function(color, i) {
     return timed(i + 1, "E" + i, 2026, 9, 28, 8 + i, 0, 30, { color: color })
   })
-  var chips = Cal.dayChips(Cal.eventsForDay(events, "2026-09-28"), 3)
+  var chips = Hey.dayChips(Hey.eventsForDay(events, "2026-09-28"), 3)
   assert.strictEqual(chips.length, 3)
   assert.strictEqual(chips[2].overflow, true)
   assert.strictEqual(chips[2].count, 3)
@@ -97,21 +126,56 @@ test("past the limit, the last chip is +N for the rest", function() {
 test("week output: failures are null, not empty", function() {
   var out = '{"week":"2026-09-28","events":[{"id":1,"title":"A","starts_at":"2026-09-28T10:00:00Z","ends_at":"2026-09-28T11:00:00Z"}]}\n'
     + '{"week":"2026-10-05","error":true}\n'
-  var weeks = Cal.parseRangeOutput(out)
+  var weeks = Hey.parseRangeOutput(out)
   assert.strictEqual(weeks["2026-09-28"].length, 1)
   assert.strictEqual(weeks["2026-10-05"], null)
-  assert.strictEqual(Cal.parseRangeOutput(""), null)
+  assert.strictEqual(Hey.parseRangeOutput(""), null)
 })
 
 test("unsafe links are dropped", function() {
-  assert.strictEqual(Cal.safeUrl("javascript:alert(1)"), "")
-  assert.strictEqual(Cal.safeUrl("https://meet.example.com/x"), "https://meet.example.com/x")
+  assert.strictEqual(Hey.safeUrl("javascript:alert(1)"), "")
+  assert.strictEqual(Hey.safeUrl("https://meet.example.com/x"), "https://meet.example.com/x")
 })
 
 test("hidden calendars are matched by name, case-insensitively", function() {
   var events = [timed(1, "A", 2026, 9, 28, 9, 0, 30), timed(2, "B", 2026, 9, 28, 10, 0, 30, { calendar: "Todoist" })]
-  var hidden = Cal.parseHiddenCalendars("todoist, ")
-  assert.deepStrictEqual(Cal.withoutHidden(events, hidden).map(function(e) { return e.title }), ["A"])
+  var hidden = Hey.parseHiddenCalendars("todoist, ")
+  assert.deepStrictEqual(Hey.withoutHidden(events, hidden).map(function(e) { return e.title }), ["A"])
+})
+
+// ---- Repeats (hey-cli 1.3.x)
+
+test("yearly all-day series land on their date in the range", function() {
+  var e = allDay(9, "Bday", "1987-07-14", "1987-07-14", { repeat_kind: "rrule", repeat_description: "yearly on the 14th day of the month in July" })
+  var out = Hey.expandRecurring(e, "2026-07-01", "2026-07-31")
+  assert.deepStrictEqual(out.map(function(o) { return o.startsAt.substr(0, 10) }), ["2026-07-14"])
+})
+
+test("weekly series stop at their 'until' date", function() {
+  var e = timed(5, "Meetup", 2026, 7, 30, 19, 30, 60, { repeat_kind: "every_week", repeat_description: "every week until September  3, 2026" })
+  var keys = Hey.expandRecurring(e, "2026-08-24", "2026-09-13").map(function(o) { return Hey.eventDayKeys(o)[0] })
+  assert.deepStrictEqual(keys, ["2026-08-27", "2026-09-03"])
+})
+
+test("weekday series skip weekends and honour a count", function() {
+  var e = timed(6, "Standup", 2026, 9, 25, 9, 0, 15, { repeat_kind: "every_weekday", repeat_description: "every weekday 4 times" })
+  var keys = Hey.expandRecurring(e, "2026-09-20", "2026-10-10").map(function(o) { return Hey.eventDayKeys(o)[0] })
+  assert.deepStrictEqual(keys, ["2026-09-25", "2026-09-28", "2026-09-29", "2026-09-30"])
+})
+
+test("monthly series skip months without that day", function() {
+  var e = allDay(7, "Rent", "2026-01-31", "2026-01-31", { repeat_kind: "every_day_of_month", repeat_description: "every month" })
+  var keys = Hey.expandRecurring(e, "2026-02-01", "2026-04-30").map(function(o) { return o.startsAt.substr(0, 10) })
+  assert.deepStrictEqual(keys, ["2026-03-31"])
+})
+
+test("occurrences keep their local wall-clock time across DST", function() {
+  var e = timed(8, "Gym", 2026, 3, 20, 7, 0, 60, { repeat_kind: "every_week", repeat_description: "every week" })
+  var out = Hey.expandRecurring(e, "2026-04-01", "2026-04-07")
+  assert.strictEqual(out.length, 1)
+  var start = new Date(out[0].startMs)
+  assert.strictEqual(start.getHours(), 7)
+  assert.strictEqual(out[0].key !== e.key, true)
 })
 
 // ---- Bar
@@ -119,31 +183,31 @@ test("hidden calendars are matched by name, case-insensitively", function() {
 test("the bar names an event and says when", function() {
   var e = timed(1, "Team sync", 2026, 9, 28, 13, 0, 90)
   var before = e.startMs - 12 * 60000
-  assert.strictEqual(Cal.barEventLabel(e, before, true), "Team sync · dans 12 min")
-  assert.strictEqual(Cal.barEventLabel(e, e.startMs + 60000, true), "Team sync · jusqu’à 14:30")
-  assert.strictEqual(Cal.barEventLabel(e, e.startMs - 3 * 3600000, true), "Team sync · à 13:00")
-  assert.strictEqual(Cal.barEventLabel(e, e.startMs - 24 * 3600000, true), "Team sync · demain 13:00")
+  assert.strictEqual(Hey.barEventLabel(e, before, true), "Team sync · in 12m")
+  assert.strictEqual(Hey.barEventLabel(e, e.startMs + 60000, true), "Team sync · jusqu’à 14:30")
+  assert.strictEqual(Hey.barEventLabel(e, e.startMs - 3 * 3600000, true), "Team sync · à 13:00")
+  assert.strictEqual(Hey.barEventLabel(e, e.startMs - 24 * 3600000, true), "Team sync · tomorrow 13:00")
 })
 
 test("the bar opens at the earliest reminder, or the lead time without one", function() {
   var e = timed(1, "Flight", 2026, 9, 28, 13, 0, 90)
   e.reminders = [e.startMs - 30 * 60000, e.startMs - 24 * 3600000]
-  assert.deepStrictEqual(Cal.barSelection("soon", [e], [], e.startMs - 20 * 3600000, 15), [e])
-  assert.deepStrictEqual(Cal.barSelection("soon", [e], [], e.startMs - 25 * 3600000, 15), [])
+  assert.deepStrictEqual(Hey.barSelection("soon", [e], [], e.startMs - 20 * 3600000, 15), [e])
+  assert.deepStrictEqual(Hey.barSelection("soon", [e], [], e.startMs - 25 * 3600000, 15), [])
   var plain = timed(2, "Call", 2026, 9, 28, 13, 0, 30)
-  assert.deepStrictEqual(Cal.barSelection("soon", [plain], [], plain.startMs - 20 * 60000, 15), [])
-  assert.deepStrictEqual(Cal.barSelection("soon", [plain], [], plain.startMs - 10 * 60000, 15), [plain])
-  assert.deepStrictEqual(Cal.barSelection("soon", [plain], [], plain.endMs, 15), [])
+  assert.deepStrictEqual(Hey.barSelection("soon", [plain], [], plain.startMs - 20 * 60000, 15), [])
+  assert.deepStrictEqual(Hey.barSelection("soon", [plain], [], plain.startMs - 10 * 60000, 15), [plain])
+  assert.deepStrictEqual(Hey.barSelection("soon", [plain], [], plain.endMs, 15), [])
 })
 
 test("all-day events show from their reminder, never without one", function() {
   var bday = allDay(3, "Lena's bday", "2026-09-29")
   var eve = new Date(2026, 8, 28, 20, 0).getTime()
-  assert.deepStrictEqual(Cal.barSelection("soon", [bday], [], eve, 15), [])
+  assert.deepStrictEqual(Hey.barSelection("soon", [bday], [], eve, 15), [])
   bday.reminders = [new Date(2026, 8, 28, 8, 0).getTime()]
-  assert.deepStrictEqual(Cal.barSelection("soon", [bday], [], eve, 15), [bday])
-  assert.strictEqual(Cal.barEventLabel(bday, eve, true), "Lena's bday · demain")
-  assert.deepStrictEqual(Cal.barSelection("soon", [bday], [], new Date(2026, 8, 30, 0, 1).getTime(), 15), [])
+  assert.deepStrictEqual(Hey.barSelection("soon", [bday], [], eve, 15), [bday])
+  assert.strictEqual(Hey.barEventLabel(bday, eve, true), "Lena's bday · tomorrow")
+  assert.deepStrictEqual(Hey.barSelection("soon", [bday], [], new Date(2026, 8, 30, 0, 1).getTime(), 15), [])
 })
 
 test("overlaps: about to start beats under way beats coming beats all day", function() {
@@ -153,66 +217,85 @@ test("overlaps: about to start beats under way beats coming beats all day", func
   var later = timed(3, "Lunch", 2026, 10, 1, 12, 0, 60)
   later.reminders = [later.startMs - 3 * 3600000]
   var holiday = allDay(4, "Holiday", "2026-10-01", "2026-10-01", { reminders: ["2026-09-30T08:00:00Z"] })
-  var pick = Cal.barSelection("soon", [holiday, later, meeting, soon], [], now, 15)
+  var pick = Hey.barSelection("soon", [holiday, later, meeting, soon], [], now, 15)
   assert.deepStrictEqual(pick.map(function(e) { return e.title }), ["Standup", "Meeting", "Lunch", "Holiday"])
-  assert.strictEqual(Cal.barLabel(pick, now, true), "Standup · dans 10 min  +3")
-  var afterStandup = Cal.barSelection("soon", [meeting, later], [], now + 5 * 60000, 15)
+  assert.strictEqual(Hey.barLabel(pick, now, true), "Standup · in 10m  +3")
+  var afterStandup = Hey.barSelection("soon", [meeting, later], [], now + 5 * 60000, 15)
   assert.strictEqual(afterStandup[0].title, "Meeting")
 })
 
 test("time mode drops the title and keeps the when", function() {
   var e = timed(1, "Secret meeting", 2026, 9, 28, 13, 0, 30)
   var now = e.startMs - 12 * 60000
-  var pick = Cal.barSelection("time", [e], [e], now, 15)
-  assert.strictEqual(Cal.barLabel(pick, now, true, "time"), "dans 12 min")
+  var pick = Hey.barSelection("time", [e], [e], now, 15)
+  assert.strictEqual(Hey.barLabel(pick, now, true, "time"), "in 12m")
 })
 
 test("name mode keeps the title and drops the when", function() {
   var a = timed(1, "Standup", 2026, 9, 28, 13, 0, 15)
   var b = timed(2, "Lunch", 2026, 9, 28, 13, 5, 60)
   var now = a.startMs - 5 * 60000
-  var pick = Cal.barSelection("name", [a, b], [a, b], now, 15)
-  assert.strictEqual(Cal.barLabel(pick, now, true, "name"), "Standup  +1")
+  var pick = Hey.barSelection("name", [a, b], [a, b], now, 15)
+  assert.strictEqual(Hey.barLabel(pick, now, true, "name"), "Standup  +1")
 })
 
 test("next mode falls back to today's next event", function() {
   var e = timed(1, "Dinner", 2026, 9, 28, 18, 30, 60)
   var now = e.startMs - 3 * 3600000
-  assert.deepStrictEqual(Cal.barSelection("next", [e], [e], now, 15), [e])
-  assert.deepStrictEqual(Cal.barSelection("off", [e], [e], e.startMs - 60000, 15), [])
+  assert.deepStrictEqual(Hey.barSelection("next", [e], [e], now, 15), [e])
+  assert.deepStrictEqual(Hey.barSelection("off", [e], [e], e.startMs - 60000, 15), [])
 })
 
 test("long titles are cut to fit the bar", function() {
   var e = timed(1, "A very long meeting title that goes on and on", 2026, 9, 28, 13, 0, 30)
-  assert.ok(Cal.barEventLabel(e, e.startMs - 60000, true).indexOf("…") !== -1)
+  assert.ok(Hey.barEventLabel(e, e.startMs - 60000, true).indexOf("…") !== -1)
 })
 
 // ---- Standard shapes any backend prints
 
-test("calendar colors: Google hex, the accent otherwise, the accent otherwise", function() {
-  assert.strictEqual(Cal.calendarColor("blue", "#000000"), "#000000")
-  assert.strictEqual(Cal.calendarColor("#1A2B3C", "#000000"), "#1a2b3c")
-  assert.strictEqual(Cal.calendarColor("chartreuse", "#000000"), "#000000")
+test("time tracks are read from the standard shape", function() {
+  var tracks = Hey.parseTimeTracks(JSON.stringify([
+    { id: 1, name: "Writing", named: true, notes: "", starts_at: "2026-09-28T10:00:00Z", ends_at: "2026-09-28T11:00:00Z" },
+    { id: 2, name: "", named: false, starts_at: "2026-09-28T12:00:00Z", ends_at: "2026-09-28T12:30:00Z" }
+  ]))
+  assert.deepStrictEqual(tracks.map(function(t) { return [t.name, t.named] }), [["Writing", true], ["Time track", false]])
+  assert.strictEqual(Hey.parseCurrentTrack('{"ok":true,"track":null}'), null)
+  assert.strictEqual(Hey.parseCurrentTrack('{"ok":true,"track":{"id":5,"name":"Deep work","starts_at":"2026-09-28T10:00:00Z"}}').title, "Deep work")
+  assert.strictEqual(Hey.parseCurrentTrack('{"ok":false}'), undefined)
+})
+
+test("calendar colors: HEY's names, other services' hex, the accent otherwise", function() {
+  assert.strictEqual(Hey.calendarColor("blue", "#000000"), "#6baffc")
+  assert.strictEqual(Hey.calendarColor("#1A2B3C", "#000000"), "#1a2b3c")
+  assert.strictEqual(Hey.calendarColor("chartreuse", "#000000"), "#000000")
+})
+
+test("the HEY backend probes its CLI and says why it cannot run", function() {
+  assert.ok(Backend.probe("").error.indexOf("not installed") !== -1)
+  assert.ok(Backend.probe("hey version 1.2.0").error.indexOf("too old") !== -1)
+  assert.strictEqual(Backend.probe("hey version 1.3.0").version, "1.3.0")
+  assert.strictEqual(Backend.writeResult(0, '{"ok":true,"summary":"Created"}').ok, true)
+  assert.strictEqual(Backend.writeResult(124, "").message, "HEY took too long to answer.")
 })
 
 // ---- Reminders
 
 test("due reminders fire once, and never for what came due before start", function() {
   var now = Date.UTC(2026, 8, 28, 10, 30)
-  var e = Cal.normalizeEvent({ id: 1, title: "Podcast", starts_at: "2026-09-28T11:00:00Z", ends_at: "2026-09-28T12:30:00Z",
+  var e = Hey.normalizeEvent({ id: 1, title: "Podcast", starts_at: "2026-09-28T11:00:00Z", ends_at: "2026-09-28T12:30:00Z",
     reminders: ["2026-09-28T10:30:00Z", "2026-09-28T09:00:00Z"] })
-  var due = Cal.dueReminders([e], now, now - 60000, {})
+  var due = Hey.dueReminders([e], now, now - 60000, {})
   assert.strictEqual(due.length, 1)
   var shown = {}
   shown[due[0].key] = now
-  assert.strictEqual(Cal.dueReminders([e], now + 15000, now - 60000, shown).length, 0)
-  assert.strictEqual(Cal.reminderLead(e, now), "Dans 30 min")
+  assert.strictEqual(Hey.dueReminders([e], now + 15000, now - 60000, shown).length, 0)
+  assert.strictEqual(Hey.reminderLead(e, now), "Dans 30 min")
 })
 
 test("a reminder carries a safe marker and a calendar-coloured icon", function() {
-  var e = Cal.normalizeEvent({ id: 7, title: "Stand-up; rm -rf /", starts_at: "2026-09-29T09:30:00Z",
-    ends_at: "2026-09-29T09:45:00Z", color: "#6baffc", reminders: ["2026-09-29T09:15:00Z"] })
-  var env = Cal.notifyCommand(e, e.startMs - 15 * 60000, true, "", e.reminders[0]).environment
+  var e = Hey.normalizeEvent({ id: 7, title: "Stand-up; rm -rf /", starts_at: "2026-09-29T09:30:00Z",
+    ends_at: "2026-09-29T09:45:00Z", color: "blue", reminders: ["2026-09-29T09:15:00Z"] })
+  var env = Hey.notifyCommand(e, e.startMs - 15 * 60000, true, "", e.reminders[0]).environment
   assert.ok(/^[A-Za-z0-9_-]+$/.test(env.OMACAL_MARKER), env.OMACAL_MARKER)
   assert.ok(/^icon-6baffc-\d{1,2}\.svg$/.test(env.OMACAL_ICON), env.OMACAL_ICON)
   assert.ok(env.OMACAL_SVG.indexOf('fill="#6baffc"') !== -1)
@@ -221,10 +304,10 @@ test("a reminder carries a safe marker and a calendar-coloured icon", function()
 
 // Any user can read a process's arguments, but only its owner its environment.
 test("a reminder keeps the event's details off the command line", function() {
-  var e = Cal.normalizeEvent({ id: 8, title: "Doctor appointment", starts_at: "2026-09-29T09:30:00Z",
+  var e = Hey.normalizeEvent({ id: 8, title: "Doctor appointment", starts_at: "2026-09-29T09:30:00Z",
     ends_at: "2026-09-29T10:30:00Z", calendar: "Private", location: "12 Secret Street",
     join_url: "https://meet.example.com/abc-defg-hij", reminders: ["2026-09-29T09:15:00Z"] })
-  var cmd = Cal.notifyCommand(e, e.startMs - 15 * 60000, true, "", e.reminders[0])
+  var cmd = Hey.notifyCommand(e, e.startMs - 15 * 60000, true, "", e.reminders[0])
   var argv = cmd.command.join("\n")
   ;["Doctor appointment", "Private", "12 Secret Street", "meet.example.com"].forEach(function(secret) {
     assert.strictEqual(argv.indexOf(secret), -1, secret)
@@ -237,63 +320,422 @@ test("a reminder keeps the event's details off the command line", function() {
 
 test("declined events never notify", function() {
   var now = Date.UTC(2026, 8, 28, 10, 30)
-  var e = Cal.normalizeEvent({ id: 1, title: "Nope", starts_at: "2026-09-28T11:00:00Z", status: "declined",
+  var e = Hey.normalizeEvent({ id: 1, title: "Nope", starts_at: "2026-09-28T11:00:00Z", status: "declined",
     reminders: ["2026-09-28T10:30:00Z"] })
-  assert.strictEqual(Cal.dueReminders([e], now, 0, {}).length, 0)
+  assert.strictEqual(Hey.dueReminders([e], now, 0, {}).length, 0)
 })
 
 // ---- New events
 
 test("clock input is forgiving", function() {
-  assert.strictEqual(Cal.parseClock("9"), "09:00")
-  assert.strictEqual(Cal.parseClock("930"), "09:30")
-  assert.strictEqual(Cal.parseClock("21.30"), "21:30")
-  assert.strictEqual(Cal.parseClock("9:30pm"), "21:30")
-  assert.strictEqual(Cal.parseClock("12am"), "00:00")
-  assert.strictEqual(Cal.parseClock("25:00"), "")
-  assert.strictEqual(Cal.parseClock("soon"), "")
+  assert.strictEqual(Hey.parseClock("9"), "09:00")
+  assert.strictEqual(Hey.parseClock("930"), "09:30")
+  assert.strictEqual(Hey.parseClock("21.30"), "21:30")
+  assert.strictEqual(Hey.parseClock("9:30pm"), "21:30")
+  assert.strictEqual(Hey.parseClock("12am"), "00:00")
+  assert.strictEqual(Hey.parseClock("25:00"), "")
+  assert.strictEqual(Hey.parseClock("soon"), "")
 })
 
 test("day input is forgiving, relative to today (a Monday)", function() {
   var today = "2026-09-28"
-  assert.strictEqual(Cal.parseDay("", today), today)
-  assert.strictEqual(Cal.parseDay("tomorrow", today), "2026-09-29")
-  assert.strictEqual(Cal.parseDay("fri", today), "2026-10-02")
-  assert.strictEqual(Cal.parseDay("mon", today), today)
-  assert.strictEqual(Cal.parseDay("next mon", today), "2026-10-05")
-  assert.strictEqual(Cal.parseDay("in 3 days", today), "2026-10-01")
-  assert.strictEqual(Cal.parseDay("+2w", today), "2026-10-12")
-  assert.strictEqual(Cal.parseDay("3 oct", today), "2026-10-03")
-  assert.strictEqual(Cal.parseDay("Oct 3rd", today), "2026-10-03")
-  assert.strictEqual(Cal.parseDay("3", today), "2026-10-03")
-  assert.strictEqual(Cal.parseDay("30", today), "2026-09-30")
-  assert.strictEqual(Cal.parseDay("1 jan", today), "2027-01-01")
-  assert.strictEqual(Cal.parseDay("2026-12-24", today), "2026-12-24")
-  assert.strictEqual(Cal.parseDay("31 feb", today), "")
-  assert.strictEqual(Cal.parseDay("someday", today), "")
+  assert.strictEqual(Hey.parseDay("", today), today)
+  assert.strictEqual(Hey.parseDay("tomorrow", today), "2026-09-29")
+  assert.strictEqual(Hey.parseDay("fri", today), "2026-10-02")
+  assert.strictEqual(Hey.parseDay("mon", today), today)
+  assert.strictEqual(Hey.parseDay("next mon", today), "2026-10-05")
+  assert.strictEqual(Hey.parseDay("in 3 days", today), "2026-10-01")
+  assert.strictEqual(Hey.parseDay("+2w", today), "2026-10-12")
+  assert.strictEqual(Hey.parseDay("3 oct", today), "2026-10-03")
+  assert.strictEqual(Hey.parseDay("Oct 3rd", today), "2026-10-03")
+  assert.strictEqual(Hey.parseDay("3", today), "2026-10-03")
+  assert.strictEqual(Hey.parseDay("30", today), "2026-09-30")
+  assert.strictEqual(Hey.parseDay("1 jan", today), "2027-01-01")
+  assert.strictEqual(Hey.parseDay("2026-12-24", today), "2026-12-24")
+  assert.strictEqual(Hey.parseDay("31 feb", today), "")
+  assert.strictEqual(Hey.parseDay("someday", today), "")
 })
 
 test("arrow keys nudge times on a quarter-hour grid, and wrap lists", function() {
-  assert.strictEqual(Cal.nudgeClock("9:07", 15, ""), "09:15")
-  assert.strictEqual(Cal.nudgeClock("9:07", -15, ""), "09:00")
-  assert.strictEqual(Cal.nudgeClock("09:00", 15, ""), "09:15")
-  assert.strictEqual(Cal.nudgeClock("", 15, "14:00"), "14:15")
-  assert.strictEqual(Cal.nudgeClock("23:45", 15, ""), "00:00")
-  assert.strictEqual(Cal.shiftClock("9:30", 60), "10:30")
-  assert.strictEqual(Cal.cycle([1, 2, 3], 3, 1), 1)
-  assert.strictEqual(Cal.cycle([1, 2, 3], 1, -1), 3)
-  assert.strictEqual(Cal.cycle(["", "10m"], "", 1), "10m")
+  assert.strictEqual(Hey.nudgeClock("9:07", 15, ""), "09:15")
+  assert.strictEqual(Hey.nudgeClock("9:07", -15, ""), "09:00")
+  assert.strictEqual(Hey.nudgeClock("09:00", 15, ""), "09:15")
+  assert.strictEqual(Hey.nudgeClock("", 15, "14:00"), "14:15")
+  assert.strictEqual(Hey.nudgeClock("23:45", 15, ""), "00:00")
+  assert.strictEqual(Hey.shiftClock("9:30", 60), "10:30")
+  assert.strictEqual(Hey.cycle([1, 2, 3], 3, 1), 1)
+  assert.strictEqual(Hey.cycle([1, 2, 3], 1, -1), 3)
+  assert.strictEqual(Hey.cycle(["", "10m"], "", 1), "10m")
+})
+
+// Validation produces data for the HTTP writer, never a command line.
+function build(form) {
+  return Hey.validateEvent(Object.assign({ timeZone: "Europe/Berlin" }, form))
+}
+
+test("new events carry literal text and validated times", function() {
+  var r = build({ title: "Dinner; rm -rf ~", date: "2026-09-28", startTime: "7pm", endTime: "22:00",
+    calendarId: 3, location: "Café Luna", remind: "30m" }).request
+  assert.strictEqual(r.title, "Dinner; rm -rf ~")
+  assert.strictEqual(r.startTime, "19:00")
+  assert.strictEqual(r.calendarId, 3)
+  assert.strictEqual(r.location, "Café Luna")
+  assert.strictEqual(r.remind, "30m")
+  assert.strictEqual(r.timeZone, "Europe/Berlin")
 })
 
 test("an end before the start is the next morning", function() {
-  var checked = Cal.validateEvent({ title: "Party", date: "2026-09-28", startTime: "22:00", endTime: "1:00" })
-  assert.strictEqual(checked.request.endDate, "2026-09-29")
+  assert.strictEqual(build({ title: "Party", date: "2026-09-28", startTime: "22:00", endTime: "1:00" }).request.endDate, "2026-09-29")
 })
 
-test("the form refuses invalid values", function() {
-  assert.ok(Cal.validateEvent({ title: " ", date: "2026-09-28" }).error)
-  assert.ok(Cal.validateEvent({ title: "X", date: "2026-09-28", startTime: "nope" }).error)
-  assert.ok(Cal.validateEvent({ title: "X", date: "2026-09-28", startTime: "10:00", endTime: "10:00" }).error)
+test("an event over several days ends on its until day", function() {
+  var r = build({ title: "Lisbon", date: "2026-10-13", allDay: true, spanDays: 3 }).request
+  assert.strictEqual(r.date, "2026-10-13")
+  assert.strictEqual(r.endDate, "2026-10-16")
+  r = build({ title: "Offsite", date: "2026-10-16", startTime: "18:00", endTime: "10:00", spanDays: 2 }).request
+  assert.strictEqual(r.endDate, "2026-10-18")
+  assert.strictEqual(r.endTime, "10:00")
+  assert.strictEqual(build({ title: "Retreat", date: "2026-10-16", startTime: "18:00", endTime: "9:00", spanDays: 1 }).request.endDate, "2026-10-17")
+})
+
+test("the form refuses missing titles, invalid times and missing multi-day end times", function() {
+  assert.ok(build({ title: "X", date: "2026-10-16", startTime: "18:00", spanDays: 2 }).error)
+  assert.ok(build({ title: " ", date: "2026-09-28" }).error)
+  assert.ok(build({ title: "X", date: "2026-09-28", startTime: "nope" }).error)
+  assert.ok(build({ title: "X", date: "2026-09-28", startTime: "10:00", endTime: "10:00" }).error)
+})
+
+test("timed events require known zones, but all-day events need none", function() {
+  ;["", "Berlin", "--help"].forEach(function(zone) {
+    assert.ok(build({ title: "X", date: "2026-09-30", startTime: "18:30", timeZone: zone }).error)
+  })
+  assert.ok(!build({ title: "Holiday", date: "2026-09-30", allDay: true, timeZone: "" }).error)
+  assert.strictEqual(build({ title: "Call", date: "2026-09-30", startTime: "9", timeZone: "America/New_York" }).request.timeZone, "America/New_York")
+  assert.ok(build({ title: "X", date: "2027-01-05", startTime: "10:00", endTime: "11:00", endTimeZone: "Nowhere" }).error)
+})
+
+// ---- Places
+
+test("places are looked up only once there is something to look up", function() {
+  assert.strictEqual(Places.request("ca", "", "", "en_GB"), null)
+  assert.strictEqual(Places.request("   ", "", "", "en_GB"), null)
+  assert.ok(Places.request("caf", "", "", "en_GB"))
+})
+
+test("without a Google key, places come from OpenStreetMap, with the query escaped", function() {
+  var r = Places.request("Café & Bar", "", "s", "de_DE")
+  assert.strictEqual(r.provider, "photon")
+  assert.strictEqual(r.method, "GET")
+  assert.ok(r.url.indexOf("q=Caf%C3%A9%20%26%20Bar&") !== -1, r.url)
+  assert.ok(/&lang=de$/.test(r.url), r.url)
+  assert.ok(!/lang=/.test(Places.request("cafe", "", "s", "it_IT").url))
+  // Something that is not a key is never sent as one.
+  assert.strictEqual(Places.request("cafe", "not a key!", "s", "en").provider, "photon")
+})
+
+test("with a Google key, the key goes in a header and never the URL", function() {
+  var key = "AIzaSyA-abcdefghijklmnopqrstuvwxyz012345"
+  var r = Places.request("cafe luna", " " + key + "\n", "tok", "it_IT")
+  assert.strictEqual(r.provider, "google")
+  assert.strictEqual(r.method, "POST")
+  assert.strictEqual(r.headers["X-Goog-Api-Key"], key)
+  assert.strictEqual(r.url.indexOf(key), -1)
+  assert.deepStrictEqual(JSON.parse(r.body), { input: "cafe luna", sessionToken: "tok", languageCode: "it" })
+})
+
+test("Google's places are read, its query predictions are not", function() {
+  var out = Places.parseGoogle(JSON.stringify({ suggestions: [
+    { placePrediction: { text: { text: "Café Luna, Via Roma 1, Milan, Italy" },
+      structuredFormat: { mainText: { text: "Café Luna" }, secondaryText: { text: "Via Roma 1, Milan, Italy" } } } },
+    { queryPrediction: { text: { text: "cafe luna near me" } } },
+    { placePrediction: { text: { text: "Luna Park, Sydney" } } }
+  ] }))
+  assert.deepStrictEqual(out, [
+    { title: "Café Luna", detail: "Via Roma 1, Milan, Italy", value: "Café Luna, Via Roma 1, Milan, Italy" },
+    { title: "Luna Park, Sydney", detail: "", value: "Luna Park, Sydney" }
+  ])
+  assert.deepStrictEqual(Places.parseGoogle("<html>"), [])
+  assert.deepStrictEqual(Places.parseGoogle("{}"), [])
+})
+
+test("OpenStreetMap places read as a name over its address", function() {
+  var out = Places.parsePhoton(JSON.stringify({ features: [
+    { properties: { name: "BeLuna Café", street: "Kaiser-Friedrich-Straße", housenumber: "76",
+      postcode: "10585", city: "Berlin", country: "Deutschland" } },
+    { properties: { street: "Via Roma", housenumber: "1", city: "Milano", country: "Italia" } },
+    { properties: { name: "BeLuna Café", street: "Kaiser-Friedrich-Straße", housenumber: "76",
+      postcode: "10585", city: "Berlin", country: "Deutschland" } },
+    { properties: { city: "Lisboa", state: "Lisboa", country: "Portugal" } }
+  ] }))
+  assert.strictEqual(out.length, 3)
+  assert.strictEqual(out[0].value, "BeLuna Café, Kaiser-Friedrich-Straße 76, 10585 Berlin, Deutschland")
+  assert.strictEqual(out[1].title, "Via Roma 1")
+  assert.strictEqual(out[1].detail, "Milano, Italia")
+  assert.strictEqual(out[2].value, "Lisboa, Portugal")
+})
+
+test("places near this machine's zone come first, without ruling others out", function() {
+  var table = "# comment\nDE,DK\t+5230+01322\tEurope/Berlin\tmost of Germany\n"
+    + "AR\t-3436-05827\tAmerica/Argentina/Buenos_Aires\tBuenos Aires\n"
+  var berlin = Places.zoneCoordinates(table, "Europe/Berlin")
+  assert.deepStrictEqual(berlin, { latitude: 52.5, longitude: 13.3667 })
+  assert.deepStrictEqual(Places.zoneCoordinates(table, "America/Argentina/Buenos_Aires"), { latitude: -34.6, longitude: -58.45 })
+  assert.strictEqual(Places.zoneCoordinates(table, "Mars/Olympus"), null)
+  var body = JSON.parse(Places.request("cafe", "AIzaSyA-abcdefghijklmnopqrstuvwxyz012345", "t", "en", berlin).body)
+  assert.deepStrictEqual(body.locationBias, { circle: { center: berlin, radius: 50000 } })
+  assert.ok(/&lat=52\.5&lon=13\.3667$/.test(Places.request("cafe", "", "t", "it", berlin).url))
+  assert.strictEqual(JSON.parse(Places.request("cafe", "AIzaSyA-abcdefghijklmnopqrstuvwxyz012345", "t", "en", null).body).locationBias, undefined)
+})
+
+test("a refused Google key says so", function() {
+  var body = JSON.stringify({ error: { message: "API key not valid. Please pass a valid API key." } })
+  assert.ok(/refused.*API key not valid/.test(Places.failure("google", 400, body)))
+  assert.strictEqual(Places.failure("photon", 500, ""), "")
+})
+
+test("the Google key lives in its own file under the config directory", function() {
+  assert.strictEqual(Places.keyPath("", "/home/x"), "/home/x/.config/omacal/google-places-key")
+  assert.strictEqual(Places.keyPath("/cfg", "/home/x"), "/cfg/omacal/google-places-key")
+})
+
+// ---- Text fields (KeyField.qml, which never reads the clipboard by itself)
+
+test("typing goes in at the caret, and replaces everything while it is all selected", function() {
+  var s = Edit.state("Lunch Maya", 5)
+  s = Edit.insert(s, " with")
+  assert.deepStrictEqual(s, { text: "Lunch with Maya", cursor: 10, all: false })
+  s = Edit.insert(Edit.selectAll(s), "Dinner")
+  assert.deepStrictEqual(s, { text: "Dinner", cursor: 6, all: false })
+})
+
+test("pasted text becomes one clean line, within the field's limit", function() {
+  assert.strictEqual(Edit.clean("a\tb\r\nc\u0007d\u007f"), "a b  cd")
+  assert.strictEqual(Edit.insert(Edit.state("", 0), "x".repeat(5000)).text.length, Edit.maximumLength)
+  assert.strictEqual(Edit.insert(Edit.state("19", 2), "8a4", /[0-9]/, 4).text, "1984")
+  assert.strictEqual(Edit.insert(Edit.state("1984", 4), "5", /[0-9]/, 4).text, "1984")
+})
+
+test("deleting and moving work by character and by word", function() {
+  var s = Edit.state("Team standup today", 12)
+  assert.strictEqual(Edit.backspace(s).text, "Team standu today")
+  assert.strictEqual(Edit.del(s).text, "Team standuptoday")
+  assert.deepStrictEqual(Edit.deleteWord(s), { text: "Team  today", cursor: 5, all: false })
+  assert.deepStrictEqual(Edit.deleteWord(Edit.state("Team standup today", 13)), { text: "Team today", cursor: 5, all: false })
+  assert.strictEqual(Edit.left(s, true).cursor, 5)
+  assert.strictEqual(Edit.right(Edit.state("Team standup today", 4), true).cursor, 12)
+  assert.strictEqual(Edit.backspace(Edit.state("abc", 0)).text, "abc")
+  assert.strictEqual(Edit.left(Edit.selectAll(s)).cursor, 0)
+  assert.strictEqual(Edit.right(Edit.selectAll(s)).cursor, 18)
+  assert.strictEqual(Edit.backspace(Edit.selectAll(s)).text, "")
+})
+
+test("legacy Google calendar selection survives the upstream integration", function() {
+  assert.strictEqual(Hey.normalizedCalendarKey("team@example.test"), "google:team@example.test")
+  assert.strictEqual(Hey.normalizedCalendarKey("primary"), "google:primary")
+  assert.strictEqual(Hey.normalizedCalendarKey("google:team@example.test"), "google:team@example.test")
+})
+
+test("native fields preserve French input methods", function() {
+  var source = require("fs").readFileSync(require("path").join(__dirname, "../KeyField.qml"), "utf8")
+  assert.ok(/UI\.TextField\s*\{/.test(source))
+  assert.ok(source.includes("inputMethodComposing"))
+  assert.strictEqual(Hey.parseDay("demain", "2026-10-21"), "2026-10-22")
+  assert.strictEqual(Hey.parseDay("février 3 2027", "2026-10-21"), "2027-02-03")
+})
+
+// ---- Editing
+
+function edit(event, change, scope, occurrences) {
+  var before = Hey.eventFormValues(event, "Europe/Berlin")
+  var after = Object.assign({}, before, change)
+  return Hey.editRequest(event, before, after, scope || "all", occurrences !== false)
+}
+
+test("the edit form opens on the event as it is, and saving it unchanged sends nothing", function() {
+  var e = timed(41, "Palestra", 2026, 9, 30, 18, 30, 90, { location: "Evo", calendar_id: 7, reminder_leads: [1800] })
+  var values = Hey.eventFormValues(e, "Europe/Berlin")
+  assert.strictEqual(values.date, "2026-09-30")
+  assert.strictEqual(values.startTime, "18:30")
+  assert.strictEqual(values.endTime, "20:00")
+  assert.strictEqual(values.remind, "30m")
+  assert.strictEqual(values.spanDays, 0)
+  assert.ok(edit(e, {}).unchanged)
+})
+
+test("an edit requests only what changed", function() {
+  var e = timed(41, "Palestra", 2026, 9, 30, 18, 30, 90, { location: "Evo", calendar_id: 7, reminder_leads: [1800] })
+  assert.deepStrictEqual(edit(e, { title: "Gym" }).request.changes, { title: "Gym" })
+})
+
+test("a new time carries its date and zone", function() {
+  var e = timed(41, "Palestra", 2026, 9, 30, 18, 30, 90)
+  var flags = Api.editFlags(edit(e, { startTime: "19:00", endTime: "20:30" }).request.changes)
+  assert.strictEqual(flags.startTime, "19:00")
+  assert.strictEqual(flags.endTime, "20:30")
+  assert.strictEqual(flags.timeZone, "Europe/Berlin")
+  assert.strictEqual(flags.startsOn, "2026-09-30")
+  assert.strictEqual(flags.endsOn, "2026-09-30")
+})
+
+test("overnight and multi-day events retain their spans when edited", function() {
+  var e = timed(42, "Night train", 2026, 9, 30, 22, 0, 180)
+  assert.strictEqual(Hey.eventFormValues(e, "Europe/Berlin").endTime, "01:00")
+  assert.strictEqual(Api.editFlags(edit(e, { title: "Sleeper", startTime: "22:30" }).request.changes).endsOn, "2026-10-01")
+  e = allDay(43, "Lisbon", "2026-10-13", "2026-10-16")
+  assert.strictEqual(Hey.eventFormValues(e, "Europe/Berlin").spanDays, 3)
+  var flags = Api.editFlags(edit(e, { date: "2026-10-20" }).request.changes)
+  assert.strictEqual(flags.allDay, true)
+  assert.strictEqual(flags.startsOn, "2026-10-20")
+  assert.strictEqual(flags.endsOn, "2026-10-23")
+  e = timed(45, "Offsite", 2026, 10, 16, 9, 0, 480)
+  flags = Api.editFlags(edit(e, { spanDays: 2 }).request.changes)
+  assert.strictEqual(flags.startsOn, "2026-10-16")
+  assert.strictEqual(flags.endsOn, "2026-10-18")
+  assert.strictEqual(flags.endTime, "17:00")
+})
+
+test("reminders the form cannot show are kept, and cannot be cleared", function() {
+  var e = timed(44, "Flight", 2026, 10, 2, 10, 0, 120, { reminder_leads: [86400, 7200] })
+  assert.strictEqual(Hey.eventFormValues(e, "Europe/Berlin").remind, "keep")
+  assert.ok(edit(e, { title: "Flight home" }).request.changes.remind === undefined)
+  assert.ok(edit(e, { remind: "" }).error)
+  assert.deepStrictEqual(Api.editFlags(edit(e, { remind: "1h" }).request.changes).reminders, [3600])
+})
+
+test("one day of a series is edited by occurrence, the whole series by its id", function() {
+  var day = timed(45, "Standup", 2026, 10, 5, 9, 30, 15, { recurring: true, occurrence_id: "45_2026-10-05" })
+  assert.deepStrictEqual(Api.editTarget(edit(day, { startTime: "10:00", endTime: "10:15" }, "one").request),
+    { id: "45", occurrence: "45_2026-10-05", date: "2026-10-05" })
+  var all = edit(day, { startTime: "10:00", endTime: "10:15" }, "all").request
+  assert.deepStrictEqual(Api.editTarget(all), { id: "45" })
+  assert.strictEqual(Api.editFlags(all.changes).startsOn, undefined, "a series keeps the day it began")
+  assert.ok(edit(day, { date: "2026-10-06" }, "all").error)
+})
+
+test("a realized occurrence is edited by its own id", function() {
+  var day = timed(46, "Standup", 2026, 10, 6, 9, 30, 15, { recurring: true, parent_id: 45, occurrence_id: "45_2026-10-06" })
+  assert.deepStrictEqual(Api.editTarget(edit(day, { title: "Standup (moved)" }, "one").request), { id: "46" })
+  assert.deepStrictEqual(Api.editTarget(edit(day, { title: "All standups" }, "all").request), { id: "45" })
+})
+
+test("the zone list reads the machine's zone and skips aliases", function() {
+  var parsed = Hey.parseZones("Europe/Berlin\nAmerica/New_York\nEurope/Berlin\nEtc/GMT+2\nposix/Europe/Rome\nGMT\nAmerica/Argentina/Buenos_Aires\n")
+  assert.strictEqual(parsed.local, "Europe/Berlin")
+  assert.deepStrictEqual(parsed.zones, ["America/Argentina/Buenos_Aires", "America/New_York", "Europe/Berlin", "UTC"])
+  assert.strictEqual(Hey.parseZones("\nEurope/Rome\n").local, "")
+})
+
+test("a typed zone filter puts the likeliest city first", function() {
+  var zones = ["America/New_York", "America/Argentina/Buenos_Aires", "Asia/Tokyo", "Europe/Berlin", "Europe/Rome", "UTC"]
+  assert.deepStrictEqual(Hey.matchZones(zones, "new y"), ["America/New_York"])
+  assert.strictEqual(Hey.matchZones(zones, "buenos")[0], "America/Argentina/Buenos_Aires")
+  assert.strictEqual(Hey.matchZones(zones, "europe", 1).length, 1)
+  assert.strictEqual(Hey.matchZones(zones, "rom")[0], "Europe/Rome")
+  assert.strictEqual(Hey.matchZones(["Arctic/Longyearbyen", "Europe/London"], "lon")[0], "Europe/London")
+  assert.deepStrictEqual(Hey.matchZones(zones, "  "), [])
+  assert.strictEqual(Hey.zoneLabel("America/New_York"), "America/New York")
+  assert.strictEqual(Hey.zoneCity("America/Argentina/Buenos_Aires"), "Buenos Aires")
+  assert.strictEqual(Hey.zoneCity("UTC"), "UTC")
+})
+
+test("repeating events are never deleted by series id", function() {
+  var e = timed(1, "Standup", 2026, 9, 28, 9, 0, 15, { recurring: true })
+  assert.deepStrictEqual(Backend.deleteCommand(e), [])
+  assert.deepStrictEqual(Backend.deleteCommand(timed(42, "Once", 2026, 9, 28, 9, 0, 15)).slice(-3), ["delete", "42", "--json"])
+})
+
+// ---- Several services at once
+
+test("a calendar is named by its service and id, and old HEY ids still read", function() {
+  assert.strictEqual(Hey.calendarKey("google", "work@example.com"), "google:work@example.com")
+  assert.strictEqual(Hey.calendarKey("hey", 0), "")
+  assert.deepStrictEqual(Hey.splitCalendarKey("google:a:b@example.com"), { source: "google", id: "a:b@example.com" })
+  assert.deepStrictEqual(Hey.splitCalendarKey(7), { source: "hey", id: "7" })
+  assert.deepStrictEqual(Hey.splitCalendarKey("nonsense"), { source: "", id: "" })
+  assert.strictEqual(Hey.normalizedCalendarKey(3), "hey:3")
+  assert.strictEqual(Hey.normalizedCalendarKey(""), "")
+})
+
+test("the same id from two services is two events and two calendars", function() {
+  var raw = { id: "41", title: "Standup", starts_at: "2026-10-19T09:00:00Z", calendar_id: "7", calendar: "Work" }
+  var a = Hey.normalizeEvent(raw, "hey")
+  var b = Hey.normalizeEvent(raw, "google")
+  assert.notStrictEqual(a.key, b.key)
+  assert.strictEqual(a.calendarKey, "hey:7")
+  assert.strictEqual(b.source, "google")
+  assert.strictEqual(Hey.indexByDay([a, b])[Hey.eventDayKeys(a)[0]].length, 2)
+  var calendars = Hey.parseCalendars('[{"id":"work@example.com","name":"Work","owned":true},{"id":0,"name":"x"}]', "google")
+  assert.strictEqual(calendars.length, 1)
+  assert.strictEqual(calendars[0].key, "google:work@example.com")
+  var long = Hey.normalizeEvent({ id: "abcdefghijklmnopqrstuvwxyz_20261019T090000Z", title: "x", starts_at: "2026-10-19T09:00:00Z" }, "google")
+  assert.strictEqual(long.seriesId, "abcdefghijklmnopqrstuvwxyz_20261019T090000Z")
+})
+
+test("calendars two services share a name are told apart, and only once", function() {
+  var merged = Hey.mergeCalendars([
+    { name: "HEY", calendars: [{ key: "hey:1", name: "Work", owned: true }, { key: "hey:2", name: "Family", owned: true }] },
+    { name: "Google", calendars: [{ key: "google:w", name: "work", owned: true }] }])
+  assert.deepStrictEqual(merged.map(function(c) { return c.label }), ["Work · HEY", "Family", "work · Google"])
+})
+
+test("hiding a calendar by key leaves another service's calendar of the same name", function() {
+  var calendars = [{ key: "hey:1", name: "Work" }, { key: "google:w@example.com", name: "Work" }, { key: "hey:2", name: "Family" }]
+  var hidden = Hey.toggleHidden([], calendars[1], calendars)
+  assert.deepStrictEqual(hidden, ["google:w@example.com"])
+  assert.deepStrictEqual(Hey.parseHiddenCalendars(hidden.join(", ")), ["google:w@example.com"])
+  assert.ok(!Hey.isHidden(calendars[0], hidden))
+  assert.ok(Hey.isHidden(calendars[1], hidden))
+  var events = [{ title: "HEY", calendar: "Work", calendarKey: "hey:1" }, { title: "Google", calendar: "Work", calendarKey: "google:w@example.com" }]
+  assert.deepStrictEqual(Hey.withoutHidden(events, hidden).map(function(e) { return e.title }), ["HEY"])
+  assert.deepStrictEqual(Hey.toggleHidden(hidden, calendars[1], calendars), [])
+  // A name typed by hand hid both; showing one keeps the other hidden.
+  var byName = Hey.parseHiddenCalendars("work")
+  assert.ok(Hey.isHidden(calendars[0], byName) && Hey.isHidden(calendars[1], byName))
+  assert.deepStrictEqual(Hey.toggleHidden(byName, calendars[0], calendars), ["google:w@example.com"])
+})
+
+test("the pills group calendars under their service, Maybe last within HEY's", function() {
+  var merged = Hey.mergeCalendars([
+    { name: "HEY", calendars: [{ key: "hey:9", source: "hey", name: "Maybe", kind: "maybe", owned: true },
+      { key: "hey:1", source: "hey", name: "Work", owned: true }, { key: "hey:3", source: "hey", name: "Google", owned: false }] },
+    { name: "Google", calendars: [{ key: "google:me@example.com", source: "google", name: "me@example.com", owned: true }] }])
+  var writable = Hey.writableCalendars(merged)
+  assert.deepStrictEqual(writable.map(function(c) { return c.key }), ["hey:1", "hey:9", "google:me@example.com"])
+  assert.deepStrictEqual(Hey.groupedCalendars(writable).map(function(c) { return c.heading || c.key }),
+    ["HEY", "hey:1", "hey:9", "Google", "google:me@example.com"])
+  assert.strictEqual(Hey.groupedCalendars(writable.slice(0, 2)).length, 2)
+})
+
+test("a new event names its service and that service's id for the calendar", function() {
+  var r = build({ title: "Lunch", date: "2026-10-19", startTime: "13:00", calendarKey: "google:work@example.com" }).request
+  assert.strictEqual(r.source, "google")
+  assert.strictEqual(r.calendarId, "work@example.com")
+  assert.ok(build({ title: "Lunch", date: "2026-10-19", startTime: "13:00", calendarKey: "nonsense" }).error)
+})
+
+test("an edit stays within its service, and says which service to use instead", function() {
+  var e = Hey.normalizeEvent({ id: "g1", title: "Gym", starts_at: new Date(2026, 9, 19, 18).toISOString(),
+    ends_at: new Date(2026, 9, 19, 19).toISOString(), calendar_id: "a@example.com" }, "google")
+  var before = Hey.eventFormValues(e, "Europe/Berlin")
+  assert.strictEqual(before.calendarKey, "google:a@example.com")
+  var moved = Hey.editRequest(e, before, Object.assign({}, before, { calendarKey: "hey:7" }), "all", true, { service: "Google" })
+  assert.ok(/one service/.test(moved.error))
+  var other = Hey.editRequest(e, before, Object.assign({}, before, { calendarKey: "google:b@example.com" }), "all", true, { service: "Google" })
+  assert.strictEqual(other.request.changes.calendarId, "b@example.com")
+  var withReminder = Hey.normalizeEvent({ id: "g2", title: "Call", starts_at: new Date(2026, 9, 19, 18).toISOString(),
+    ends_at: new Date(2026, 9, 19, 19).toISOString(), calendar_id: "a@example.com", reminder_leads: [600] }, "google")
+  var opened = Hey.eventFormValues(withReminder, "Europe/Berlin")
+  assert.ok(Hey.editRequest(withReminder, opened, Object.assign({}, opened, { remind: "" }), "all", true).error)
+  assert.strictEqual(Hey.editRequest(withReminder, opened, Object.assign({}, opened, { remind: "" }), "all", true,
+    { service: "Google", clearsReminders: true }).request.changes.remind, "")
+  var invitation = Hey.normalizeEvent({ id: "g3", title: "Their meeting", starts_at: "2026-10-19T09:00:00Z", editable: false }, "google")
+  assert.ok(/Google/.test(Hey.editRequest(invitation, opened, opened, "all", true, { service: "Google" }).error))
+})
+
+test("a helper's own words for failed weeks reach the panel", function() {
+  assert.strictEqual(Hey.rangeOutputError('{"week":"2026-10-19","error":true}\n{"ok":false,"error":"Run gws auth login."}'), "Run gws auth login.")
+  assert.strictEqual(Hey.rangeOutputError('{"week":"2026-10-19","events":[]}'), "")
+  assert.strictEqual(Hey.localPath("file:///home/me/My%20Plugins/omacal/"), "/home/me/My Plugins/omacal/")
 })
 
 if (failures > 0) {
@@ -301,16 +743,3 @@ if (failures > 0) {
   process.exit(1)
 }
 console.log("ok [" + tz + "]")
-
-// French date input and labels, including Qt's abbreviated month names.
-for (const [input, expected] of [
-  ["aujourd’hui", "2026-09-28"], ["aujourd'hui", "2026-09-28"],
-  ["demain", "2026-09-29"], ["hier", "2026-09-27"],
-  ["vendredi", "2026-10-02"], ["ven.", "2026-10-02"],
-  ["lundi prochain", "2026-10-05"], ["dans 3 jours", "2026-10-01"],
-  ["dans 2 semaines", "2026-10-12"], ["3 février 2027", "2027-02-03"],
-  ["3 févr. 2027", "2027-02-03"], ["3 août 2027", "2027-08-03"],
-  ["3 mars 2027", "2027-03-03"], ["29 sept. 2026", "2026-09-29"]
-]) assert.equal(Cal.parseDay(input, "2026-09-28"), expected, input)
-assert.equal(Cal.relativeDayLabel("2026-09-28", "2026-09-28"), "Aujourd’hui")
-assert.equal(Cal.relativeDayLabel("2026-09-29", "2026-09-28"), "Demain")

@@ -1,10 +1,40 @@
-// OmaCal's date, event and bar model, shared by the Google Agenda views.
-// Qt-free so the same model runs in QML and the Node test suite.
-// Google returns expanded recurring occurrences, one JSON line per week:
-// { week: "YYYY-MM-DD", events: [...] }, or { week, error: true }.
-
-var MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july",
-  "august", "september", "october", "november", "december"]
+// Calendar for Omarchy's calendar model: every piece of date, event and bar math, and
+// nothing about any one calendar service.
+//
+// Model.js is Omarchy's own clock model and stays byte-for-byte stock, so a
+// newer Omarchy can be dropped in over it. Where events come from is a
+// backend's business (backends/*.js). Like Model.js this is Qt-free, so it
+// runs under plain node (tests/run); the QML owns every pixel and process.
+//
+// ---- Backends
+//
+// A backend is a file of command lines, and every command prints one of
+// these standard shapes, so this file is the only one that parses:
+//
+//   Events, one JSON line per week or span:
+//     {"week": "YYYY-MM-DD", "events": [event...]}       a Monday-named week
+//     {"week": "YYYY-MM-DD", "error": true}               that week failed
+//     {"list": true, "first": KEY, "last": KEY, "events": [event...]}
+//       a whole span, with repeating series given once, to be unrolled
+//     {"list": true, "first": KEY, "last": KEY, "error": true}
+//   where an event is { id, title, all_day, starts_at, ends_at (ISO 8601),
+//     calendar, color (a name or #hex), calendar_id, location, url,
+//     join_url, join_title, status, reminders: [ISO 8601...],
+//     reminder_leads: [seconds...], recurring, occurrence_id, parent_id,
+//     repeat_kind, repeat_description, editable }; only id, title and
+//     starts_at are required. An all-day event's ends_at is its last day.
+//
+//   Calendars: [{ id, name, color, kind, owned }]
+//   Time tracks: [{ id, name, named, notes, starts_at, ends_at }]
+//   The track under way: { ok: true, track: { id, name, starts_at } | null }
+//
+// Several backends can be read at once (HEY, Google, calendar feeds). Each
+// is a source, named by its backend's id, and what it prints is parsed with
+// that name: an event or calendar carries its `source`, and a calendar is
+// known everywhere by its key, "source:id", so two services' ids never meet.
+//
+// Writes are built from validateEvent's checked request, and go to the
+// backend the calendar belongs to.
 
 var MS_PER_DAY = 86400000
 
@@ -31,15 +61,54 @@ function safeUrl(value) {
   return /^https:\/\/[^\s"'<>\\]+$/.test(text) ? text : ""
 }
 
+// A file:// URL (Qt.resolvedUrl's) as the path it names.
+function localPath(url) {
+  var text = String(url || "").replace(/^file:\/\//, "")
+  try {
+    return decodeURIComponent(text)
+  } catch (e) {
+    return text
+  }
+}
+
 function parseInstant(value) {
   var ms = Date.parse(String(value || ""))
   return isFinite(ms) ? ms : null
 }
 
+// "hey" and "7" are "hey:7": a calendar's name across every source.
+function calendarKey(source, id) {
+  var name = boundedString(source, 32)
+  var raw = boundedString(id, 256)
+  return name !== "" && raw !== "" && raw !== "0" ? name + ":" + raw : ""
+}
+
+// "hey:7" as { source: "hey", id: "7" }. A bare number is a HEY calendar,
+// as Calendar for Omarchy stored the last one used before there was more than HEY.
+function splitCalendarKey(key) {
+  var text = String(key === undefined || key === null ? "" : key)
+  if (/^[1-9]\d*$/.test(text)) return { source: "hey", id: text }
+  var colon = text.indexOf(":")
+  if (colon <= 0 || colon === text.length - 1) return { source: "", id: "" }
+  return { source: text.substr(0, colon), id: text.substr(colon + 1) }
+}
+
+function normalizedCalendarKey(value) {
+  // This fork stored raw Google IDs before upstream introduced source keys.
+  var raw = String(value || "");
+  if (raw && raw.indexOf(":") < 0 && !/^\d+$/.test(raw)) return calendarKey("google", raw);
+  var parts = splitCalendarKey(value)
+  return calendarKey(parts.source, parts.id)
+}
+
+function eventKey(source, id, startsAt) {
+  return (source ? source + "/" : "") + id + "@" + startsAt
+}
+
 // Titles, locations and calendar names are text somebody else wrote, so every
 // string that reaches a binding is length-capped here and rendered as
-// PlainText there.
-function normalizeEvent(raw) {
+// PlainText there. `source` names the backend the event came from.
+function normalizeEvent(raw, source) {
   if (!raw || typeof raw !== "object") return null
 
   var startsAt = boundedString(raw.starts_at, 64)
@@ -53,22 +122,35 @@ function normalizeEvent(raw) {
     if (at !== null) reminders.push(at)
   }
 
-  var seriesId = boundedString(raw.id, 1024)
-  var occurrenceId = boundedString(raw.occurrence_id, 1024)
+  var leads = []
+  var rawLeads = Array.isArray(raw.reminder_leads) ? raw.reminder_leads : []
+  for (var j = 0; j < rawLeads.length && leads.length < 8; j++) {
+    var lead = Number(rawLeads[j])
+    if (isFinite(lead) && lead >= 0) leads.push(Math.round(lead))
+  }
+
+  var from = boundedString(source, 32)
+  var seriesId = boundedString(raw.id, 160)
+  var occurrenceId = boundedString(raw.occurrence_id, 160)
+  var calendarId = raw.calendar_id === 0 ? "" : boundedString(raw.calendar_id, 256)
   return {
     // A repeating series shares one id across every day it lands on, so the
     // start is part of the identity: two Mondays of a standup are two rows.
-    key: (typeof raw.calendar_id === "string" ? raw.calendar_id + ":" : "") + (occurrenceId || seriesId) + "@" + startsAt,
+    key: eventKey(from, occurrenceId || seriesId, startsAt),
+    source: from,
     seriesId: seriesId,
     occurrenceId: occurrenceId,
+    // A day of a series that HEY has written out on its own keeps its own
+    // id in `id` and the series' here.
+    parentId: boundedString(raw.parent_id, 160),
     recurring: raw.recurring === true,
-    title: boundedString(raw.title, 256) || "(sans titre)",
+    title: boundedString(raw.title, 256) || "(untitled)",
     allDay: allDay,
     startsAt: startsAt,
     endsAt: boundedString(raw.ends_at, 64) || startsAt,
     location: boundedString(raw.location, 256),
-    calendarId: typeof raw.calendar_id === "string" ? boundedString(raw.calendar_id, 1024) : Number(raw.calendar_id) || 0,
-    writable: raw.writable !== false,
+    calendarId: calendarId,
+    calendarKey: calendarKey(from, calendarId),
     calendar: boundedString(raw.calendar, 128),
     color: boundedString(raw.color, 32).toLowerCase(),
     joinUrl: safeUrl(raw.join_url),
@@ -76,6 +158,13 @@ function normalizeEvent(raw) {
     url: safeUrl(raw.url),
     status: boundedString(raw.status, 32),
     reminders: reminders,
+    // How long before the start each reminder goes off, in seconds.
+    reminderLeads: leads,
+    repeatKind: boundedString(raw.repeat_kind, 32),
+    repeatDescription: boundedString(raw.repeat_description, 256),
+    // Whether the service lets you change it: an invitation you are a guest
+    // on, or a calendar you can only read, is not.
+    editable: raw.editable !== false,
     // Resolved once, here, so nothing downstream has to remember that an
     // all-day event is a floating date rather than an instant.
     startMs: allDay ? null : parseInstant(startsAt),
@@ -83,11 +172,11 @@ function normalizeEvent(raw) {
   }
 }
 
-function normalizeEvents(list) {
+function normalizeEvents(list, source) {
   var events = []
   var raw = Array.isArray(list) ? list : []
   for (var i = 0; i < raw.length && events.length < maximumEventCount; i++) {
-    var event = normalizeEvent(raw[i])
+    var event = normalizeEvent(raw[i], source)
     if (event) events.push(event)
   }
   return events
@@ -96,7 +185,7 @@ function normalizeEvents(list) {
 // One line per week: { week, events } or { week, error: true }. Returns a map
 // from week key to its events, with `null` for a week that failed, or null
 // when the output as a whole is unusable.
-function parseRangeOutput(raw) {
+function parseRangeOutput(raw, source) {
   var text = String(raw === undefined || raw === null ? "" : raw)
   if (text.length > cliOutputByteLimit) return null
 
@@ -112,16 +201,44 @@ function parseRangeOutput(raw) {
     } catch (e) {
       continue
     }
+    if (parsed && parsed.list === true && isDayKey(parsed.first) && isDayKey(parsed.last)) {
+      found = true
+      var listed = parsed.error === true || !Array.isArray(parsed.events)
+        ? null
+        : expandAll(normalizeEvents(parsed.events, source), parsed.first, parsed.last)
+      var spanWeeks = weekKeysBetween(parsed.first, parsed.last)
+      var bucketed = listed === null ? null : bucketByWeek(listed, spanWeeks)
+      for (var w = 0; w < spanWeeks.length; w++)
+        weeks[spanWeeks[w]] = bucketed === null ? null : bucketed[spanWeeks[w]]
+      continue
+    }
     if (!parsed || !isDayKey(parsed.week)) continue
     found = true
     weeks[parsed.week] = parsed.error === true || !Array.isArray(parsed.events)
       ? null
-      : normalizeEvents(parsed.events)
+      : normalizeEvents(parsed.events, source)
   }
   return found ? weeks : null
 }
 
-function parseCalendars(raw) {
+// What a helper said went wrong while reading weeks, from the
+// { ok: false, error } line it adds after the failed weeks, or "".
+function rangeOutputError(raw) {
+  var lines = String(raw === undefined || raw === null ? "" : raw).split("\n")
+  for (var i = 0; i < lines.length && i < 64; i++) {
+    var line = lines[i].replace(/^\s+|\s+$/g, "")
+    if (line.indexOf("\"error\"") === -1) continue
+    try {
+      var parsed = JSON.parse(line)
+      if (parsed && parsed.ok === false && typeof parsed.error === "string") return boundedString(parsed.error, 300)
+    } catch (e) {
+      continue
+    }
+  }
+  return ""
+}
+
+function parseCalendars(raw, source) {
   var text = String(raw === undefined || raw === null ? "" : raw).replace(/^\s+|\s+$/g, "")
   if (text === "") return null
   var parsed
@@ -132,25 +249,335 @@ function parseCalendars(raw) {
   }
   if (!Array.isArray(parsed)) return null
 
+  var from = boundedString(source, 32)
   var calendars = []
   for (var i = 0; i < parsed.length && calendars.length < 100; i++) {
     var c = parsed[i]
-    if (!c || !(typeof c.id === "string" ? c.id.length > 0 : Number(c.id) > 0)) continue
+    var id = c ? boundedString(c.id, 256) : ""
+    if (id === "" || id === "0") continue
     calendars.push({
-      id: typeof c.id === "string" ? boundedString(c.id, 1024) : Number(c.id),
+      id: id,
+      key: calendarKey(from, id),
+      source: from,
       name: boundedString(c.name, 128),
       color: boundedString(c.color, 32).toLowerCase(),
+      kind: boundedString(c.kind, 32),
       owned: c.owned === true
     })
   }
   return calendars
 }
 
-// Google calendars where the account has write access.
+// Calendars a new event can go on: the ones you own. "Maybe" is HEY's own
+// holding pen for tentative plans and is kept, last among its service's
+// calendars, the way HEY lists it.
 function writableCalendars(calendars) {
-  return (Array.isArray(calendars) ? calendars : []).filter(function(calendar) {
-    return calendar.owned === true
-  })
+  var list = Array.isArray(calendars) ? calendars : []
+  var out = []
+  var maybe = []
+  for (var i = 0; i < list.length; i++) {
+    if (i > 0 && list[i].source !== list[i - 1].source) {
+      out = out.concat(maybe)
+      maybe = []
+    }
+    if (!list[i].owned) continue
+    if (list[i].kind === "maybe") maybe.push(list[i])
+    else out.push(list[i])
+  }
+  return out.concat(maybe)
+}
+
+// A list of calendars with a heading before each service's, for the pills,
+// when they come from more than one service: { heading, key } entries
+// between the calendars. One service's calendars come back as they are.
+function groupedCalendars(calendars) {
+  var list = Array.isArray(calendars) ? calendars : []
+  var sources = {}
+  for (var i = 0; i < list.length; i++) sources[list[i].source] = true
+  if (Object.keys(sources).length < 2) return list
+  var out = []
+  for (var j = 0; j < list.length; j++) {
+    if (j === 0 || list[j].source !== list[j - 1].source)
+      out.push({ heading: String(list[j].service || list[j].source || ""), key: "heading:" + list[j].source })
+    out.push(list[j])
+  }
+  return out
+}
+
+// Every source's calendars in one list, each with the label the panel shows:
+// its name, and the service's after it where two services share a name
+// ("Personal · Google"). `sources` is [{ name, calendars }], in order.
+function mergeCalendars(sources) {
+  var all = []
+  var counts = {}
+  var list = Array.isArray(sources) ? sources : []
+  for (var s = 0; s < list.length; s++) {
+    var calendars = Array.isArray(list[s].calendars) ? list[s].calendars : []
+    for (var i = 0; i < calendars.length; i++) {
+      var name = String(calendars[i].name).toLowerCase()
+      if (!counts[name]) counts[name] = {}
+      counts[name][s] = true
+      all.push({ calendar: calendars[i], source: s })
+    }
+  }
+  var out = []
+  for (var j = 0; j < all.length; j++) {
+    var copy = {}
+    for (var field in all[j].calendar) copy[field] = all[j].calendar[field]
+    var shared = Object.keys(counts[String(copy.name).toLowerCase()]).length > 1
+    copy.service = String(list[all[j].source].name || "")
+    copy.label = shared ? copy.name + " · " + copy.service : copy.name
+    out.push(copy)
+  }
+  return out
+}
+
+// The track under way, from its standard shape: the track, null when
+// nothing is running, or undefined when the answer was unusable.
+function parseCurrentTrack(raw) {
+  var text = String(raw === undefined || raw === null ? "" : raw).replace(/^\s+|\s+$/g, "")
+  if (text === "") return undefined
+  var parsed
+  try {
+    parsed = JSON.parse(text)
+  } catch (e) {
+    return undefined
+  }
+  if (!parsed || parsed.ok !== true) return undefined
+  var track = parsed.track
+  if (!track || typeof track !== "object") return null
+  var startMs = parseInstant(track.starts_at)
+  if (startMs === null) return null
+  return {
+    id: boundedString(track.id, 32),
+    title: boundedString(track.name, 256),
+    startMs: startMs
+  }
+}
+
+// A finished track, shaped enough like a timed event that the same day
+// math files it: the days it covers, where it starts and ends.
+function normalizeTimeTrack(raw) {
+  if (!raw || typeof raw !== "object") return null
+  var startMs = parseInstant(raw.starts_at)
+  var endMs = parseInstant(raw.ends_at)
+  if (startMs === null) return null
+  return {
+    key: "track:" + boundedString(raw.id, 32),
+    id: boundedString(raw.id, 32),
+    name: boundedString(raw.name, 256) || "Time track",
+    named: raw.named === true,
+    notes: boundedString(raw.notes, 1024),
+    allDay: false,
+    startMs: startMs,
+    endMs: endMs === null || endMs < startMs ? startMs : endMs
+  }
+}
+
+function parseTimeTracks(raw) {
+  var text = String(raw === undefined || raw === null ? "" : raw).replace(/^\s+|\s+$/g, "")
+  if (text === "") return null
+  var parsed
+  try {
+    parsed = JSON.parse(text)
+  } catch (e) {
+    return null
+  }
+  if (!Array.isArray(parsed)) return null
+  var tracks = []
+  for (var i = 0; i < parsed.length && tracks.length < 1000; i++) {
+    var track = normalizeTimeTrack(parsed[i])
+    if (track) tracks.push(track)
+  }
+  return tracks
+}
+
+// Day key → that day's tracks, earliest first.
+function tracksByDay(tracks) {
+  var index = {}
+  var list = Array.isArray(tracks) ? tracks : []
+  for (var i = 0; i < list.length; i++) {
+    var keys = eventDayKeys(list[i])
+    for (var k = 0; k < keys.length; k++) {
+      if (!index[keys[k]]) index[keys[k]] = []
+      index[keys[k]].push(list[i])
+    }
+  }
+  for (var key in index) index[key].sort(function(a, b) { return a.startMs - b.startMs })
+  return index
+}
+
+// Time tracked on a day: only the part of each track that falls on it.
+function trackedOnDay(tracks, dayKey) {
+  var dayStart = dateFromKey(dayKey).getTime()
+  var dayEnd = dateFromKey(addDays(dayKey, 1)).getTime()
+  var total = 0
+  var list = Array.isArray(tracks) ? tracks : []
+  for (var i = 0; i < list.length; i++)
+    total += Math.max(0, Math.min(list[i].endMs, dayEnd) - Math.max(list[i].startMs, dayStart))
+  return total
+}
+
+// The track a stop just finished: the newest one that ended after `sinceMs`.
+function newestTrackSince(tracks, sinceMs) {
+  var best = null
+  var list = Array.isArray(tracks) ? tracks : []
+  for (var i = 0; i < list.length; i++)
+    if (list[i].endMs >= sinceMs && (!best || list[i].endMs > best.endMs)) best = list[i]
+  return best
+}
+
+// ---------------------------------------------------------------------------
+// Repeats, for backends that list a series once
+// ---------------------------------------------------------------------------
+
+// A span line lists each series once, on the day it began, with only the
+// name of its schedule (hey-cli 1.3's `hey event list` answers this way). These are HEY's presets, which is
+// what its own form creates. A custom schedule ("rrule") is opaque except
+// for its description; the common yearly one is recognised from that, and
+// anything else shows on its first day only.
+var repeatSteps = {
+  "every_day": { days: 1 },
+  "every_weekday": { days: 1, weekdays: true },
+  "every_week": { days: 7 },
+  "every_other_week": { days: 14 },
+  "every_day_of_month": { months: 1 },
+  "every_year": { months: 12 }
+}
+
+var MONTH_NAMES = ["january", "february", "march", "april", "mai", "june", "july",
+  "august", "september", "october", "november", "december"]
+
+function repeatStep(event) {
+  if (repeatSteps[event.repeatKind]) return repeatSteps[event.repeatKind]
+  if (event.repeatKind === "rrule" && /^yearly on the \d+\w* day of the month in \w+$/i.test(event.repeatDescription))
+    return repeatSteps.every_year
+  return null
+}
+
+// "every week until September  3, 2026" → "2026-09-03".
+function repeatUntil(description) {
+  var match = /until\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})/.exec(String(description || ""))
+  if (!match) return ""
+  var month = MONTH_NAMES.indexOf(match[1].toLowerCase())
+  if (month === -1) return ""
+  return dateKey(parseInt(match[3], 10), month, parseInt(match[2], 10))
+}
+
+// "every day 5 times" → 5.
+function repeatTimes(description) {
+  var match = /(\d+)\s+times/.exec(String(description || ""))
+  return match ? parseInt(match[1], 10) : 0
+}
+
+// The n-th occurrence's local start date, or null when that month or year
+// has no such day (the 31st, or February 29th), which HEY skips.
+function occurrenceDate(start, step, n) {
+  var date
+  if (step.months) {
+    date = new Date(start.getFullYear(), start.getMonth() + step.months * n, start.getDate(),
+      start.getHours(), start.getMinutes(), start.getSeconds())
+    return date.getDate() === start.getDate() ? date : null
+  }
+  date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + step.days * n,
+    start.getHours(), start.getMinutes(), start.getSeconds())
+  return date
+}
+
+function shiftEvent(event, startDate, firstDayKey) {
+  var copy = {}
+  for (var field in event) copy[field] = event[field]
+  if (event.allDay) {
+    // Floating dates: moved as text, never through a timezone.
+    var span = daysBetween(String(event.startsAt).substr(0, 10), String(event.endsAt).substr(0, 10))
+    var newKey = keyForDate(startDate)
+    copy.startsAt = newKey + "T00:00:00Z"
+    copy.endsAt = addDays(newKey, Math.max(0, span)) + "T00:00:00Z"
+  } else {
+    var length = (event.endMs || event.startMs) - event.startMs
+    copy.startMs = startDate.getTime()
+    copy.endMs = copy.startMs + length
+    copy.startsAt = new Date(copy.startMs).toISOString()
+    copy.endsAt = new Date(copy.endMs).toISOString()
+  }
+  copy.recurring = true
+  copy.key = eventKey(event.source, event.seriesId, copy.startsAt)
+  return copy
+}
+
+// A series' occurrences that touch firstKey..lastKey. Occurrences are
+// counted from the series' first day so "5 times" stops where HEY stops;
+// the count is jumped ahead where the step allows, so a daily series from
+// 1987 does not walk every day since.
+function expandRecurring(event, firstKey, lastKey) {
+  var step = repeatStep(event)
+  if (!step) return [event]
+
+  var allDay = event.allDay
+  var start = allDay ? dateFromKey(String(event.startsAt).substr(0, 10)) : new Date(event.startMs)
+  var firstKeyOfSeries = keyForDate(start)
+  var until = repeatUntil(event.repeatDescription)
+  var times = repeatTimes(event.repeatDescription)
+  // The longest an occurrence can run back into the range from before it.
+  var lookBack = Math.max(0, eventDayKeys(event).length)
+  var from = addDays(firstKey, -lookBack)
+
+  var n = 0
+  if (!step.weekdays && !times) {
+    var gap = daysBetween(firstKeyOfSeries, from)
+    if (step.days && gap > 0) n = Math.floor(gap / step.days)
+    else if (step.months && gap > 0) n = Math.max(0, Math.floor(gap / (31 * step.months)))
+  }
+
+  var out = []
+  var counted = n
+  for (var guard = 0; guard < 5000; guard++, n++) {
+    var date = occurrenceDate(start, step, n)
+    if (date === null) continue
+    var key = keyForDate(date)
+    if (key > lastKey) break
+    if (until !== "" && key > until) break
+    if (step.weekdays && (date.getDay() === 0 || date.getDay() === 6)) continue
+    counted++
+    if (times && counted > times) break
+    var occurrence = n === 0 ? event : shiftEvent(event, date, firstKey)
+    var days = eventDayKeys(occurrence)
+    if (days.length > 0 && days[days.length - 1] >= firstKey && days[0] <= lastKey) out.push(occurrence)
+  }
+  return out
+}
+
+function expandAll(events, firstKey, lastKey) {
+  var out = []
+  for (var i = 0; i < events.length && out.length < maximumEventCount; i++) {
+    var expanded = events[i].repeatKind !== "" ? expandRecurring(events[i], firstKey, lastKey) : [events[i]]
+    for (var j = 0; j < expanded.length; j++) {
+      var days = eventDayKeys(expanded[j])
+      // `hey event list` is generous about its window; anything that does
+      // not actually touch the span is dropped here.
+      if (days.length > 0 && days[days.length - 1] >= firstKey && days[0] <= lastKey) out.push(expanded[j])
+    }
+  }
+  return out
+}
+
+// Files each event under every HEY week it touches, the way `hey event
+// week` would have answered.
+function bucketByWeek(events, weekKeys) {
+  var buckets = {}
+  for (var w = 0; w < weekKeys.length; w++) buckets[weekKeys[w]] = []
+  for (var i = 0; i < events.length; i++) {
+    var days = eventDayKeys(events[i])
+    var filed = {}
+    for (var d = 0; d < days.length; d++) {
+      var week = weekStartKey(days[d])
+      if (buckets[week] && !filed[week]) {
+        buckets[week].push(events[i])
+        filed[week] = true
+      }
+    }
+  }
+  return buckets
 }
 
 // Merges the per-week lists into one, dropping the copies a multi-day event
@@ -172,25 +599,64 @@ function mergeWeeks(cache) {
   return out
 }
 
-// Calendars named in the `hiddenCalendars` setting are left out, whatever
-// the backend. Some backends already leave out what is switched off in
-// their own app; for the rest, this is how to hide a calendar.
+// The `hiddenCalendars` setting: calendar keys ("hey:7", as the settings
+// write it, hiding that one calendar), and names typed by hand ("Todoist",
+// hiding every calendar of that name, whatever the service). Names are
+// matched without case; keys exactly.
+var hiddenKeyPattern = /^(hey|google|feeds):\S/
+
 function parseHiddenCalendars(value) {
   var list = Array.isArray(value) ? value : String(value || "").split(",")
   var out = []
   for (var i = 0; i < list.length; i++) {
-    var name = String(list[i] || "").replace(/^\s+|\s+$/g, "").toLowerCase()
-    if (name !== "" && out.indexOf(name) === -1) out.push(name)
+    var entry = String(list[i] || "").replace(/^\s+|\s+$/g, "")
+    if (!hiddenKeyPattern.test(entry)) entry = entry.toLowerCase()
+    if (entry !== "" && out.indexOf(entry) === -1) out.push(entry)
   }
   return out
 }
 
+// Whether a calendar ({ key, name }) or an event ({ calendarKey, calendar })
+// is hidden.
+function isHidden(item, hidden) {
+  var entries = Array.isArray(hidden) ? hidden : []
+  if (entries.length === 0 || !item) return false
+  var event = item.calendar !== undefined || item.calendarKey !== undefined
+  var key = String(event ? item.calendarKey : item.key)
+  var name = String(event ? item.calendar : item.name).toLowerCase()
+  return entries.indexOf(key) !== -1 || entries.indexOf(name) !== -1
+}
+
 function withoutHidden(events, hidden) {
-  var names = Array.isArray(hidden) ? hidden : []
-  if (names.length === 0) return events
+  var entries = Array.isArray(hidden) ? hidden : []
+  if (entries.length === 0) return events
   var out = []
   for (var i = 0; i < events.length; i++)
-    if (names.indexOf(String(events[i].calendar).toLowerCase()) === -1) out.push(events[i])
+    if (!isHidden(events[i], entries)) out.push(events[i])
+  return out
+}
+
+// The setting with one calendar shown or hidden, and no other: a name that
+// hid it along with others becomes the others' keys.
+function toggleHidden(hidden, calendar, calendars) {
+  var entries = Array.isArray(hidden) ? hidden.slice() : []
+  var list = Array.isArray(calendars) ? calendars : []
+  if (!calendar) return entries
+  var key = String(calendar.key)
+  var name = String(calendar.name).toLowerCase()
+  if (!isHidden(calendar, entries)) {
+    entries.push(key)
+    return entries
+  }
+  var out = []
+  for (var i = 0; i < entries.length; i++) {
+    if (entries[i] === key) continue
+    if (entries[i] !== name) { out.push(entries[i]); continue }
+    for (var c = 0; c < list.length; c++) {
+      var other = String(list[c].key)
+      if (other !== key && String(list[c].name).toLowerCase() === name && out.indexOf(other) === -1) out.push(other)
+    }
+  }
   return out
 }
 
@@ -229,7 +695,7 @@ function daysBetween(fromKey, toKey) {
     - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / MS_PER_DAY)
 }
 
-// Weeks run Monday to Sunday, and a Monday is the
+// Weeks run Monday to Sunday, as HEY draws them, and a Monday is the
 // canonical name for a week in the event lines backends print.
 function weekStartKey(dayKey) {
   var date = dateFromKey(dayKey)
@@ -256,11 +722,11 @@ function weekKeysBetween(firstKey, lastKey) {
 // and both are right. One that ends exactly at midnight does not spill onto
 // the next day, which it only touches.
 //
-// An all-day event is a floating date; treating it as an instant would
-// slide it onto yesterday for
+// An all-day event is not an instant at all: HEY stores it as a midnight-UTC
+// pair, and reading that as a moment would slide it onto yesterday for
 // everyone west of Greenwich. So its dates are read off the text, never
-// converted. Multi-day ones end exclusively (a three-day trip is the 13th to
-// the 16th) while a single-day one repeats its own date.
+// converted. The end date is the last day, as HEY draws it: a trip from the
+// 13th to the 16th covers four days, and a single day repeats its own date.
 function eventDayKeys(event) {
   if (!event) return []
   var keys = []
@@ -289,7 +755,7 @@ function eventDayKeys(event) {
   if (!isDayKey(first)) return []
   if (!isDayKey(endKey) || endKey <= first) return [first]
   cursor = first
-  while (cursor < endKey && keys.length < 90) {
+  while (cursor <= endKey && keys.length < 90) {
     keys.push(cursor)
     cursor = addDays(cursor, 1)
   }
@@ -455,7 +921,7 @@ function barWhen(event, nowMs, hour24) {
   if (isNow(event, nowMs)) return event.endMs !== null ? "jusqu’à " + formatTime(new Date(event.endMs), hour24) : "maintenant"
   var minutes = Math.max(0, Math.round((event.startMs - nowMs) / 60000))
   if (minutes === 0) return "maintenant"
-  if (minutes < 60) return "dans " + minutes + " min"
+  if (minutes < 60) return "in " + minutes + "m"
   var startKey = keyForDate(new Date(event.startMs))
   var time = formatTime(new Date(event.startMs), hour24)
   if (startKey === todayKey) return "à " + time
@@ -468,7 +934,7 @@ var SHORT_MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "
 
 function dayWord(key, todayKey) {
   var days = daysBetween(todayKey, key)
-  if (days === 1) return "demain"
+  if (days === 1) return "tomorrow"
   var date = dateFromKey(key)
   if (days > 1 && days < 7) return SHORT_WEEKDAYS[date.getDay()]
   return date.getDate() + " " + SHORT_MONTHS[date.getMonth()]
@@ -485,7 +951,7 @@ function barEventLabel(event, nowMs, hour24, titleOnly) {
   return when === "" ? title : title + " · " + when
 }
 
-// When the bar starts naming an event: at its earliest reminder, so an
+// When the bar starts naming an event: at its earliest HEY reminder, so an
 // event you asked to hear about a day ahead is in the bar a day ahead. One
 // without reminders uses the lead time; an all-day one without reminders
 // is never named, the way a birthday nobody set an alert for stays quiet.
@@ -559,7 +1025,7 @@ function barSelection(mode, events, todayEvents, nowMs, leadMinutes) {
 function barLabel(selection, nowMs, hour24, style) {
   if (!selection || selection.length === 0) return ""
   var label
-  if (style === "time") label = barWhen(selection[0], nowMs, hour24) || "today"
+  if (style === "time") label = barWhen(selection[0], nowMs, hour24) || "aujourd’hui"
   else if (style === "name") label = barEventLabel(selection[0], nowMs, hour24, true)
   else label = barEventLabel(selection[0], nowMs, hour24)
   return selection.length > 1 ? label + "  +" + (selection.length - 1) : label
@@ -687,7 +1153,7 @@ var notifyScript = [
   "        '/org/freedesktop/Notifications', None, Gio.DBusSignalFlags.NONE, answered, None)",
   "    sent[0] = bus.call_sync('org.freedesktop.Notifications', '/org/freedesktop/Notifications',",
   "        'org.freedesktop.Notifications', 'Notify',",
-  "        GLib.Variant('(susssasa{sv}i)', ('OmaCal', 0, icon, env['TITLE'], env['BODY'], ['default', 'Open'], {}, -1)),",
+  "        GLib.Variant('(susssasa{sv}i)', ('Calendar for Omarchy', 0, icon, env['TITLE'], env['BODY'], ['default', 'Open'], {}, -1)),",
   "        GLib.VariantType('(u)'), Gio.DBusCallFlags.NONE, -1, None).unpack()[0]",
   "except GLib.Error:",
   "    sys.exit(0)",
@@ -769,7 +1235,7 @@ function matchName(word, names, minimum) {
   return -1
 }
 
-// Loose day input, relative to today: "today", "tomorrow", "fri" (the next
+// Loose day input, relative to today: "aujourd’hui", "tomorrow", "ven." (the next
 // Friday, today included), "next fri" (the one after), "in 3 days", "+3",
 // "3 oct", "oct 3", "3" (the next 3rd), or "2026-10-03". Returns a day key,
 // or "" when it is not a day. Blank means today.
@@ -888,7 +1354,7 @@ function cycle(list, current, delta) {
 }
 
 // The next half hour from now, which is what a fresh event on today starts at.
-// Other days start at nine.
+// Other days start at nine, the way HEY's own form fills in.
 function suggestedStart(dayKey, now) {
   if (dayKey !== keyForDate(now)) return "09:00"
   var minutes = now.getHours() * 60 + now.getMinutes()
@@ -898,9 +1364,106 @@ function suggestedStart(dayKey, now) {
 
 var reminderChoices = ["", "10m", "30m", "1h", "1d"]
 
+// ---------------------------------------------------------------------------
+// Time zones
+// ---------------------------------------------------------------------------
+//
+// A timed event is always written with the zone its clock times are in.
+// Left to itself, hey-cli up to 1.7 sends no zone on a machine without $TZ
+// (Go calls that zone "Local", which names nothing HEY knows), and HEY reads
+// a zoneless time as UTC: 18:30 typed in Berlin was stored as 20:30. Later
+// hey-cli uses the HEY account's zone, which is not this machine's while
+// travelling. So the form names one: this machine's, unless another is
+// picked, the way HEY's own event form offers a zone.
+
+// Prints this machine's IANA zone on the first line (empty when it cannot
+// tell), then every zone name it knows, one per line.
+var zonesCommand = ["sh", "-c",
+  "z=''; case \"${TZ#:}\" in */*) z=${TZ#:} ;; esac; " +
+  "[ -n \"$z\" ] || z=$(timedatectl show -p Timezone --value 2>/dev/null); " +
+  "[ -n \"$z\" ] || z=$(readlink -f /etc/localtime 2>/dev/null | sed -n 's|.*/zoneinfo/||p'); " +
+  "printf '%s\\n' \"$z\"; " +
+  "timedatectl list-timezones 2>/dev/null || " +
+  "(cd /usr/share/zoneinfo 2>/dev/null && find . -type f | sed 's|^\\./||' | sort)"]
+
+// An IANA name as HEY takes it: Area/Location (Europe/Berlin,
+// America/Argentina/Buenos_Aires), or UTC.
+function isZoneName(name) {
+  var text = String(name || "")
+  return text === "UTC" || /^[A-Z][A-Za-z]+(\/[A-Za-z0-9_+-]+)+$/.test(text)
+}
+
+// zonesCommand's output as { local, zones }: local is "" when the machine
+// did not say. The backward-compatible aliases (posix/, right/, Etc/) and
+// bare names are left out, as HEY's own picker does.
+function parseZones(output) {
+  var lines = String(output || "").split("\n")
+  var local = String(lines[0] || "").replace(/^\s+|\s+$/g, "")
+  var seen = {}
+  var zones = []
+  for (var i = 1; i < lines.length; i++) {
+    var name = lines[i].replace(/^\s+|\s+$/g, "")
+    if (!isZoneName(name) || seen[name]) continue
+    if (/^(posix|right|Etc|SystemV)\//.test(name)) continue
+    seen[name] = true
+    zones.push(name)
+  }
+  if (!seen.UTC) zones.push("UTC")
+  if (isZoneName(local) && !seen[local]) zones.push(local)
+  zones.sort()
+  return { local: isZoneName(local) ? local : "", zones: zones }
+}
+
+// The zones a typed filter could mean, best first: the name itself, then a
+// city that starts with it ("new y" is America/New_York), then any part
+// that does, then any name containing it. Spaces match underscores.
+// Among equals the shorter city comes first: "lon" is London, not Longyearbyen.
+function matchZones(zones, query, limit) {
+  var q = String(query || "").replace(/^\s+|\s+$/g, "").toLowerCase().replace(/\s+/g, "_")
+  if (q === "") return []
+  var ranked = []
+  for (var i = 0; i < (zones || []).length; i++) {
+    var name = zones[i]
+    var lower = name.toLowerCase()
+    var parts = lower.split("/")
+    var rank = -1
+    if (lower === q) rank = 0
+    else if (parts[parts.length - 1].indexOf(q) === 0) rank = 1
+    else if (lower.indexOf(q) === 0 || parts.some(function(p) { return p.indexOf(q) === 0 })) rank = 2
+    else if (lower.indexOf(q) !== -1) rank = 3
+    if (rank !== -1) ranked.push({ name: name, rank: rank, city: parts[parts.length - 1].length })
+  }
+  ranked.sort(function(a, b) {
+    return a.rank - b.rank || a.city - b.city || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
+  })
+  var out = []
+  for (var j = 0; j < ranked.length && (limit === undefined || j < limit); j++) out.push(ranked[j].name)
+  return out
+}
+
+// "America/New_York" reads as "America/New York".
+function zoneLabel(name) {
+  return String(name || "").replace(/_/g, " ")
+}
+
+// The city a zone is named for, as HEY shows it under a time:
+// "America/New_York" is "New York", "America/Argentina/Buenos_Aires" is
+// "Buenos Aires".
+function zoneCity(name) {
+  var parts = String(name || "").split("/")
+  return parts[parts.length - 1].replace(/_/g, " ")
+}
+
 // Checks the new-event form and turns it into the request a backend's
-// createCommand takes: { title, date, allDay, startTime, endTime, endDate,
-// calendarId, location, remind }, times as HH:MM, the end date worked out.
+// writer takes: { title, date, allDay, startTime, endTime, endDate,
+// timeZone, endTimeZone, source, calendarId, location, remind }, times as
+// HH:MM. The form names its calendar by key ("google:work@example.com");
+// the request carries the source and that service's own id for it.
+// A timed event must name its zone (the form passes this machine's unless
+// another is picked). The end is in timeZone too, with its date worked out,
+// unless endTimeZone names another: then the end's clock is in that zone,
+// and it is the backend's to place it (the end date is the first on which
+// it falls after the start, or the until day when the form gives one).
 // Returns { error } or { request }.
 function validateEvent(form) {
   var f = form || {}
@@ -909,35 +1472,165 @@ function validateEvent(form) {
   if (title.length > 256) return { error: "Le titre est trop long." }
   if (!isDayKey(f.date)) return { error: "Choisissez une date." }
 
+  var source = ""
+  var calendarId = Number(f.calendarId) > 0 ? Math.round(Number(f.calendarId)) : 0
+  if (f.calendarKey !== undefined && f.calendarKey !== null && String(f.calendarKey) !== "") {
+    var named = splitCalendarKey(f.calendarKey)
+    if (named.source === "") return { error: "Pick a calendar." }
+    source = named.source
+    calendarId = named.id
+  }
   var request = { title: title, date: f.date, allDay: f.allDay === true, startTime: "", endTime: "",
-    endDate: f.date, calendarId: typeof f.calendarId === "string" ? boundedString(f.calendarId, 1024)
-      : (Number(f.calendarId) > 0 ? Math.round(Number(f.calendarId)) : 0),
+    endDate: f.date, timeZone: "", endTimeZone: "", source: source, calendarId: calendarId,
     location: String(f.location || "").replace(/^\s+|\s+$/g, "").substr(0, 256), remind: "" }
 
+  // How many days after the start the end falls: the form's "until" day.
+  // A timed event's end time is on that day, so it has to have one.
+  var spanDays = Math.max(0, Math.min(366, Math.round(Number(f.spanDays) || 0)))
+
   if (request.allDay) {
-    if (f.endDate && f.endDate !== f.date) {
+    if (spanDays > 0) request.endDate = addDays(f.date, spanDays)
+    else if (f.endDate && f.endDate !== f.date) {
       if (!isDayKey(f.endDate) || f.endDate < f.date) return { error: "La fin doit être après le début." }
       request.endDate = f.endDate
     }
   } else {
+    var zone = String(f.timeZone || "")
+    if (zone === "") return { error: "Pick a time zone: I could not tell this machine's." }
+    if (!isZoneName(zone)) return { error: "“" + zone + "” is not a time zone I know." }
+    request.timeZone = zone
     var start = parseClock(f.startTime)
     if (start === "") return { error: "L’heure de début est invalide." }
     request.startTime = start
     var endText = String(f.endTime || "").replace(/\s+/g, "")
+    if (endText === "" && spanDays > 0) return { error: "Give it an end time on its last day." }
     if (endText !== "") {
       var end = parseClock(endText)
       if (end === "") return { error: "L’heure de fin est invalide." }
-      if (clockMinutes(end) === clockMinutes(start)) return { error: "La fin doit être après le début." }
-      // An end before the start is read as the next morning, the way you
-      // mean "22:00 to 01:00".
-      if (clockMinutes(end) < clockMinutes(start)) request.endDate = addDays(f.date, 1)
       request.endTime = end
+      var endZone = String(f.endTimeZone || "")
+      if (endZone !== "" && endZone !== zone) {
+        // Clocks in two zones do not compare; the backend works out the day.
+        if (!isZoneName(endZone)) return { error: "“" + endZone + "” is not a time zone I know." }
+        request.endTimeZone = endZone
+        if (spanDays > 0) request.endDate = addDays(f.date, spanDays)
+      } else if (spanDays > 0) {
+        request.endDate = addDays(f.date, spanDays)
+      } else {
+        if (clockMinutes(end) === clockMinutes(start)) return { error: "La fin doit être après le début." }
+        // An end before the start is read as the next morning, the way you
+        // mean "22:00 to 01:00".
+        if (clockMinutes(end) < clockMinutes(start)) request.endDate = addDays(f.date, 1)
+      }
     }
   }
 
   var remind = String(f.remind || "")
   if (remind !== "" && reminderChoices.indexOf(remind) !== -1) request.remind = remind
   return { request: request }
+}
+
+// ---------------------------------------------------------------------------
+// Editing
+// ---------------------------------------------------------------------------
+
+var reminderLeadChoices = { 600: "10m", 1800: "30m", 3600: "1h", 86400: "1d" }
+
+// The new-event form's values for an existing event, to edit it: times on
+// this machine's clock (HEY's listings do not say which zone an event was
+// written in), the reminder when it is one the form offers ("keep" when it
+// is several or another lead), and how many days after the start it ends.
+function eventFormValues(event, localZone) {
+  if (!event) return null
+  var values = { title: event.title, allDay: event.allDay, location: event.location,
+    calendarKey: event.calendarKey || "", calendarId: event.calendarId, timeZone: localZone || "", endTimeZone: "",
+    startTime: "", endTime: "", date: "", spanDays: 0, remind: "" }
+  if (event.allDay) {
+    var keys = eventDayKeys(event)
+    if (keys.length === 0) return null
+    values.date = keys[0]
+    values.spanDays = keys.length - 1
+  } else {
+    if (event.startMs === null) return null
+    var start = new Date(event.startMs)
+    var end = new Date(event.endMs !== null && event.endMs > event.startMs ? event.endMs : event.startMs + 3600000)
+    values.date = keyForDate(start)
+    values.startTime = formatTime(start, true)
+    values.endTime = formatTime(end, true)
+    values.spanDays = Math.max(0, daysBetween(values.date, keyForDate(end)))
+    // An end at the start's clock the next day is a full day, not nothing.
+    if (values.spanDays === 1 && clockMinutes(values.endTime) < clockMinutes(values.startTime)) values.spanDays = 0
+  }
+  var leads = event.reminderLeads || []
+  if (leads.length === 1 && reminderLeadChoices[leads[0]]) values.remind = reminderLeadChoices[leads[0]]
+  else if (leads.length > 0) values.remind = "keep"
+  return values
+}
+
+// Can one day of this series be edited on its own? A day HEY wrote out has
+// its own id; any other day needs the occurrence (and a CLI that takes it).
+function editsOneDay(event, occurrencesSupported) {
+  if (!event || !event.recurring) return false
+  if (event.parentId !== "" && event.parentId !== event.seriesId) return true
+  return occurrencesSupported === true && event.occurrenceId !== ""
+}
+
+// What an edit changes: the edited form (`after`) against what it opened
+// with (`before`, from eventFormValues). Only what changed is sent, since
+// the service keeps the rest, the reminders included. `scope` is "one"
+// (this day of a series) or "all" (the whole event or series). `options`
+// says what the event's service can do: { service: its name, clearsReminders:
+// whether an edit can leave it with none }. Returns { error },
+// { unchanged: true } or { request: { event, scope, changes } }.
+function editRequest(event, before, after, scope, occurrencesSupported, options) {
+  var o = options || {}
+  var service = o.service || "HEY"
+  if (!event || !before) return { error: "That event is gone. Refresh and try again." }
+  if (event.editable === false) return { error: service + " does not let you change that event here. Open it in " + service + "." }
+  var one = scope === "one" && event.recurring
+  if (one && !editsOneDay(event, occurrencesSupported))
+    return { error: "This hey-cli can only change the whole series. Update it to change one day." }
+
+  var checked = validateEvent(after)
+  if (checked.error) return checked
+  var opened = validateEvent(before)
+  if (opened.error) return { error: "Calendar for Omarchy could not read that event's times. Edit it in " + service + "." }
+  var was = opened.request
+  var now = checked.request
+  var changes = {}
+
+  if (now.title !== was.title) changes.title = now.title
+  if (now.location !== was.location) changes.location = now.location
+  if (now.source !== was.source && now.source !== "" && was.source !== "")
+    return { error: "Calendar for Omarchy moves an event only between calendars of one service." }
+  if (now.calendarId && String(now.calendarId) !== "0" && String(now.calendarId) !== String(was.calendarId))
+    changes.calendarId = now.calendarId
+
+  var remind = String(after.remind || "")
+  if (remind !== String(before.remind || "") && remind !== "keep") {
+    // hey-cli sends back what an edit does not name, and has no way to say
+    // "none": an event keeps at least the reminders it has.
+    if (remind === "" && !o.clearsReminders) return { error: "Calendar for Omarchy cannot remove reminders yet. Turn them off in HEY." }
+    changes.remind = remind
+  }
+
+  var moved = now.allDay !== was.allDay || now.date !== was.date || now.endDate !== was.endDate
+  var retimed = !now.allDay && (now.startTime !== was.startTime || now.endTime !== was.endTime
+    || now.timeZone !== was.timeZone || now.endTimeZone !== was.endTimeZone)
+  if (moved || retimed) {
+    if (event.recurring && !one && (now.date !== was.date || now.endDate !== was.endDate))
+      return { error: "Move one day of a series at a time, or move the whole series in " + service + "." }
+    if (event.recurring && !one && now.endTimeZone !== "")
+      return { error: "Give the end its own zone on one day at a time." }
+    changes.schedule = { allDay: now.allDay, date: now.date, endDate: now.endDate,
+      startTime: now.startTime, endTime: now.endTime, timeZone: now.timeZone,
+      endTimeZone: now.endTimeZone, dates: !(event.recurring && !one) }
+  }
+
+  var any = false
+  for (var k in changes) any = true
+  if (!any) return { unchanged: true }
+  return { request: { event: event, scope: one ? "one" : "all", changes: changes } }
 }
 
 // ---------------------------------------------------------------------------
@@ -957,7 +1650,7 @@ function formatTime(date, hour24) {
 
 function eventRangeLabel(event, hour24) {
   if (!event) return ""
-  if (event.allDay) return "Toute la journée"
+  if (event.allDay) return "All day"
   if (event.startMs === null) return ""
   var start = formatTime(new Date(event.startMs), hour24)
   if (event.endMs === null || event.endMs <= event.startMs) return start
@@ -975,6 +1668,14 @@ function eventTimeOnDay(event, dayKey, hour24) {
   case "middle": return "toute la journée"
   default: return eventRangeLabel(event, hour24)
   }
+}
+
+function durationLabel(ms) {
+  var minutes = Math.max(0, Math.floor(Number(ms) / 60000))
+  var hours = Math.floor(minutes / 60)
+  var rest = minutes % 60
+  if (hours === 0) return rest + " min"
+  return hours + " h" + (rest > 0 ? " " + pad2(rest) : "")
 }
 
 // "Aujourd’hui", "Demain", "Hier", or how far away it is.
@@ -998,22 +1699,39 @@ function calendarLabel(name) {
 }
 
 // ---------------------------------------------------------------------------
-// Calendar colors
+// Colors, in HEY's palette
 // ---------------------------------------------------------------------------
 
-// Dark ink on calendar fills.
+// HEY names its calendar colors rather than giving hex. These are the fills
+// HEY's own dark calendar paints (blue, red, gold and teal sampled from it),
+// with the rest matched in the same key: light pastels that carry dark text.
+var calendarPalette = {
+  "black": "#c3cad3",
+  "blue": "#6baffc",
+  "brown": "#dcc1a0",
+  "gold": "#f6da93",
+  "green": "#a9e8a0",
+  "orange": "#ffc08a",
+  "pink": "#ffb0d9",
+  "purple": "#cdb6fb",
+  "red": "#fe9a99",
+  "teal": "#aefbec",
+  "yellow": "#fbf09a"
+}
+
+// The ink HEY sets on those fills.
 var calendarInk = "#1b2632"
 
-// The "today" marker: the warm orange blob behind the day's name.
+// HEY's "aujourd’hui" marker: the warm orange blob behind the day's name.
 var todayColor = "#fcb55b"
 
-// Google's hex colors pass through as they are.
+// Other services give colors as hex, which pass through as they are.
 // Anything else falls through to the caller's accent, so a calendar the
 // plugin has never heard of is never invisible.
 function calendarColor(name, fallback) {
   var key = String(name || "").toLowerCase().replace(/^\s+|\s+$/g, "")
   if (/^#[0-9a-f]{6}$/.test(key)) return key
-  return fallback
+  return calendarPalette[key] || fallback
 }
 
 if (typeof module !== "undefined") {
@@ -1021,15 +1739,35 @@ if (typeof module !== "undefined") {
     isDayKey: isDayKey,
     boundedString: boundedString,
     safeUrl: safeUrl,
+    localPath: localPath,
     parseInstant: parseInstant,
     normalizeEvent: normalizeEvent,
     normalizeEvents: normalizeEvents,
     parseRangeOutput: parseRangeOutput,
+    rangeOutputError: rangeOutputError,
     parseCalendars: parseCalendars,
     writableCalendars: writableCalendars,
+    mergeCalendars: mergeCalendars,
+    calendarKey: calendarKey,
+    splitCalendarKey: splitCalendarKey,
+    normalizedCalendarKey: normalizedCalendarKey,
+    parseCurrentTrack: parseCurrentTrack,
+    normalizeTimeTrack: normalizeTimeTrack,
+    parseTimeTracks: parseTimeTracks,
+    tracksByDay: tracksByDay,
+    trackedOnDay: trackedOnDay,
+    newestTrackSince: newestTrackSince,
+    repeatUntil: repeatUntil,
+    repeatTimes: repeatTimes,
+    expandRecurring: expandRecurring,
+    expandAll: expandAll,
+    bucketByWeek: bucketByWeek,
     mergeWeeks: mergeWeeks,
     parseHiddenCalendars: parseHiddenCalendars,
     withoutHidden: withoutHidden,
+    isHidden: isHidden,
+    toggleHidden: toggleHidden,
+    groupedCalendars: groupedCalendars,
     dateKey: dateKey,
     keyForDate: keyForDate,
     dateFromKey: dateFromKey,
@@ -1071,12 +1809,23 @@ if (typeof module !== "undefined") {
     cycle: cycle,
     suggestedStart: suggestedStart,
     validateEvent: validateEvent,
+    eventFormValues: eventFormValues,
+    editsOneDay: editsOneDay,
+    editRequest: editRequest,
+    zonesCommand: zonesCommand,
+    isZoneName: isZoneName,
+    parseZones: parseZones,
+    matchZones: matchZones,
+    zoneLabel: zoneLabel,
+    zoneCity: zoneCity,
     formatTime: formatTime,
     eventRangeLabel: eventRangeLabel,
     eventTimeOnDay: eventTimeOnDay,
+    durationLabel: durationLabel,
     relativeDayLabel: relativeDayLabel,
     calendarLabel: calendarLabel,
     calendarColor: calendarColor,
+    calendarPalette: calendarPalette,
     calendarInk: calendarInk,
     todayColor: todayColor,
     reminderChoices: reminderChoices

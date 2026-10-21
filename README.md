@@ -116,3 +116,15 @@ Voir [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) et [LICENSE](LICENSE).
 ## Intégration upstream du 3 octobre 2026
 
 Les rappels utilisent une déduplication atomique entre écrans, une icône de la couleur du calendrier et transportent leur texte hors des arguments de processus. Les changements HEY de fuseaux, d’édition et de dates de fin inclusives ne s’appliquent pas au backend Google : les dates de fin Google restent exclusives et les événements s’ouvrent dans Google Agenda.
+
+## Intégration upstream du 21 octobre 2026
+
+Révision intégrée : `95ee533b28bb9e273185dfc5b3bcdb92df25d01f`. Intégration en un commit linéaire, conformément aux règles du dépôt ; les commits du fork ne sont pas réécrits.
+
+Édition des événements Google, événements sur plusieurs jours, fuseaux horaires et flux de calendrier intégrés. Google reste activé par défaut, HEY et les flux restent désactivés tant qu’ils ne sont pas choisis. Les suggestions de lieux sont désactivées par défaut. Le compte Google configuré est vérifié avant les opérations ; le cache local, la navigation française et le routage vers l’écran actif sont conservés.
+
+Les champs natifs Qt sont conservés pour les accents, les touches mortes, Compose, les méthodes de saisie, la sélection et l’annulation. Le remplacement upstream par un éditeur de touches personnalisé est volontairement écarté. Les champs natifs gardent donc le comportement Qt de lecture du presse-papiers ; la protection upstream qui supprime ces lectures automatiques n’est pas applicable à cette variante.
+
+`tests/check-french-input` vérifie la préédition et la validation de `ê`, `é` et `à` dans les vrais composants, avec des données synthétiques. Ce test requiert les outils de développement Qt 6 et un compilateur C++. Il ne remplace pas un essai physique du clavier.
+
+La documentation upstream est conservée dans [UPSTREAM.md](UPSTREAM.md) ; ses limitations de saisie ne concernent pas cette variante native.

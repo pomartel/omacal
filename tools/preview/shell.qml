@@ -1,4 +1,4 @@
-// Renders OmaCal's real panel, quick-add form and settings with a made-up
+// Renders Calendar for Omarchy's real panel, quick-add form and settings with a made-up
 // calendar, for the README and release screenshots. No backend runs: a
 // stand-in host serves fictional events, so no account is read and nothing
 // is written. Run through tools/render-screenshots.
@@ -6,6 +6,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "plugin" as Plugin
 import "plugin/Calendar.js" as Cal
@@ -46,59 +47,88 @@ ShellRoot {
   }
 
   readonly property var sampleEvents: Cal.normalizeEvents([
-    allDay(1, "Sam's birthday", "Family", "#fe9a99", 0),
-    timed(2, "Team standup", "Work", "#6baffc", 0, 9, 30, 15),
-    timed(3, "Design review: onboarding", "Work", "#6baffc", 0, 11, 0, 90, { location: "Studio 3" }),
-    timed(4, "Lunch with Maya", "Friends", "#f6da93", 0, 13, 0, 60, { location: "Café Luna" }),
-    timed(5, "Climbing", "Health", "#a9e8a0", 0, 18, 30, 90, { location: "Boulderhalle" }),
-    timed(6, "Team standup", "Work", "#6baffc", 1, 9, 30, 15),
-    timed(7, "Dentist", "Health", "#a9e8a0", 1, 16, 0, 45),
-    timed(8, "Team standup", "Work", "#6baffc", 2, 9, 30, 15),
-    timed(9, "Book club", "Friends", "#f6da93", 2, 19, 0, 120),
-    timed(10, "Quarterly planning", "Work", "#6baffc", 3, 10, 0, 180),
-    timed(11, "Dinner at Nonna's", "Family", "#fe9a99", 3, 19, 30, 120),
-    timed(12, "Yoga", "Health", "#a9e8a0", 4, 8, 0, 60),
-    timed(13, "Flight BER → LIS", "Travel", "#aefbec", 5, 7, 40, 225),
-    allDay(14, "Lisbon", "Travel", "#aefbec", 5, 3),
-    timed(15, "Tram 28 and pastéis", "Friends", "#f6da93", 6, 11, 0, 120),
-    timed(16, "Flight LIS → BER", "Travel", "#aefbec", 7, 18, 5, 215),
-    timed(17, "Team standup", "Work", "#6baffc", -3, 9, 30, 15),
-    timed(18, "Launch retro", "Work", "#6baffc", -3, 15, 0, 60),
-    timed(19, "Run", "Health", "#a9e8a0", -2, 7, 0, 45),
-    allDay(20, "Mum visiting", "Family", "#fe9a99", -6, 2),
-    timed(21, "Climbing", "Health", "#a9e8a0", -5, 18, 30, 120),
-    timed(22, "Concert: The Blue Hours", "Friends", "#f6da93", -8, 20, 0, 150),
-    timed(23, "1:1 with Priya", "Work", "#6baffc", 8, 14, 0, 30),
-    timed(24, "Team standup", "Work", "#6baffc", 9, 9, 30, 15),
-    timed(25, "Pottery class", "Hobbies", "#cdb6fb", 9, 18, 0, 120),
-    timed(26, "Pottery class", "Hobbies", "#cdb6fb", 2, 18, 0, 120),
-    timed(27, "Haircut", "Personal", "#dcc1a0", 10, 12, 0, 45),
-    timed(28, "Pottery class", "Hobbies", "#cdb6fb", -5, 18, 0, 120),
-    timed(29, "Board game night", "Friends", "#f6da93", 11, 19, 0, 180),
-    timed(30, "Design review: settings", "Work", "#6baffc", 11, 11, 0, 60),
-    timed(31, "Team standup", "Work", "#6baffc", -10, 9, 30, 15),
-    timed(32, "Pottery class", "Hobbies", "#cdb6fb", -12, 18, 0, 120),
-    allDay(33, "Berlin half marathon", "Health", "#a9e8a0", -13),
-    timed(34, "Brunch with the Kims", "Friends", "#f6da93", -14, 11, 0, 120),
-    timed(35, "Sprint demo", "Work", "#6baffc", -17, 16, 0, 60),
-    timed(36, "Parents' anniversary dinner", "Family", "#fe9a99", -19, 19, 0, 150),
-    timed(37, "Yoga", "Health", "#a9e8a0", -20, 8, 0, 60),
-    timed(38, "Team offsite", "Work", "#6baffc", -22, 9, 0, 480),
-    timed(39, "Picnic at Tempelhof", "Friends", "#f6da93", -23, 13, 0, 180),
-    timed(40, "Car service", "Personal", "#dcc1a0", -25, 8, 30, 60),
-    timed(41, "Climbing", "Health", "#a9e8a0", -26, 18, 30, 120),
-    timed(42, "Team standup", "Work", "#6baffc", -24, 9, 30, 15)
-  ])
+    allDay(1, "Sam's birthday", "Family", "red", 0),
+    timed(2, "Team standup", "Work", "blue", 0, 9, 30, 15),
+    timed(3, "Design review: onboarding", "Work", "blue", 0, 11, 0, 90, { location: "Studio 3",
+      join_url: "https://meet.example.com/design-review", calendar_id: 1, reminder_leads: [1800],
+      url: "https://app.hey.com/calendar/events/3/edit" }),
+    timed(4, "Lunch with Maya", "Friends", "gold", 0, 13, 0, 60, { location: "Café Luna" }),
+    timed(5, "Climbing", "Health", "green", 0, 18, 30, 90, { location: "Boulderhalle" }),
+    timed(6, "Team standup", "Work", "blue", 1, 9, 30, 15),
+    timed(7, "Dentist", "Health", "green", 1, 16, 0, 45),
+    timed(8, "Team standup", "Work", "blue", 2, 9, 30, 15),
+    timed(9, "Book club", "Friends", "gold", 2, 19, 0, 120),
+    timed(10, "Quarterly planning", "Work", "blue", 3, 10, 0, 180),
+    timed(11, "Dinner at Nonna's", "Family", "red", 3, 19, 30, 120),
+    timed(12, "Yoga", "Health", "green", 4, 8, 0, 60),
+    timed(13, "Flight BER → LIS", "Travel", "teal", 5, 7, 40, 225),
+    allDay(14, "Lisbon", "Travel", "teal", 5, 3),
+    timed(15, "Tram 28 and pastéis", "Friends", "gold", 6, 11, 0, 120),
+    timed(16, "Flight LIS → BER", "Travel", "teal", 7, 18, 5, 215),
+    timed(17, "Team standup", "Work", "blue", -3, 9, 30, 15),
+    timed(18, "Launch retro", "Work", "blue", -3, 15, 0, 60),
+    timed(19, "Run", "Health", "green", -2, 7, 0, 45),
+    allDay(20, "Mum visiting", "Family", "red", -6, 2),
+    timed(21, "Climbing", "Health", "green", -5, 18, 30, 120),
+    timed(22, "Concert: The Blue Hours", "Friends", "gold", -8, 20, 0, 150),
+    timed(23, "1:1 with Priya", "Work", "blue", 8, 14, 0, 30),
+    timed(24, "Team standup", "Work", "blue", 9, 9, 30, 15),
+    timed(25, "Pottery class", "Hobbies", "purple", 9, 18, 0, 120),
+    timed(26, "Pottery class", "Hobbies", "purple", 2, 18, 0, 120),
+    timed(27, "Haircut", "Personal", "brown", 10, 12, 0, 45),
+    timed(28, "Pottery class", "Hobbies", "purple", -5, 18, 0, 120),
+    timed(29, "Board game night", "Friends", "gold", 11, 19, 0, 180),
+    timed(30, "Design review: settings", "Work", "blue", 11, 11, 0, 60),
+    timed(31, "Team standup", "Work", "blue", -10, 9, 30, 15),
+    timed(32, "Pottery class", "Hobbies", "purple", -12, 18, 0, 120),
+    allDay(33, "Berlin half marathon", "Health", "green", -13),
+    timed(34, "Brunch with the Kims", "Friends", "gold", -14, 11, 0, 120),
+    timed(35, "Sprint demo", "Work", "blue", -17, 16, 0, 60),
+    timed(36, "Parents' anniversary dinner", "Family", "red", -19, 19, 0, 150),
+    timed(37, "Yoga", "Health", "green", -20, 8, 0, 60),
+    timed(38, "Team offsite", "Work", "blue", -22, 9, 0, 480),
+    timed(39, "Picnic at Tempelhof", "Friends", "gold", -23, 13, 0, 180),
+    timed(40, "Car service", "Personal", "brown", -25, 8, 30, 60),
+    timed(41, "Climbing", "Health", "green", -26, 18, 30, 120),
+    timed(42, "Team standup", "Work", "blue", -24, 9, 30, 15)
+  ], "hey").concat(Cal.normalizeEvents([
+    timed("g1", "Roadmap sync", "Team", "#9fe1e7", 0, 15, 0, 45, { calendar_id: "team@example.com",
+      join_url: "https://meet.google.com/abc-defg-hij", join_title: "Google Meet" }),
+    timed("g2", "Hiring panel", "Team", "#9fe1e7", 1, 11, 0, 60, { calendar_id: "team@example.com" }),
+    timed("g3", "Roadmap sync", "Team", "#9fe1e7", 7, 15, 0, 45, { calendar_id: "team@example.com" })
+  ], "google")).concat(Cal.normalizeEvents([
+    allDay("h1", "Reformation Day", "Holidays", "orange", 15)
+  ], "feeds"))
 
-  readonly property var sampleCalendars: [
-    { id: 1, name: "Work", color: "#6baffc", owned: true },
-    { id: 2, name: "Family", color: "#fe9a99", owned: true },
-    { id: 3, name: "Friends", color: "#f6da93", owned: true },
-    { id: 4, name: "Health", color: "#a9e8a0", owned: true },
-    { id: 5, name: "Travel", color: "#aefbec", owned: true },
-    { id: 6, name: "Hobbies", color: "#cdb6fb", owned: true },
-    { id: 7, name: "Personal", color: "#dcc1a0", owned: true }
-  ]
+  function sampleCalendarsOf(source, list) {
+    return list.map(function(c) {
+      return { id: String(c.id), key: Cal.calendarKey(source, c.id), source: source, name: c.name,
+        color: c.color, kind: c.kind || "", owned: c.owned === true }
+    })
+  }
+
+  readonly property var sampleCalendars: Cal.mergeCalendars([
+    { name: "HEY", calendars: sampleCalendarsOf("hey", [
+      { id: 1, name: "Work", color: "blue", kind: "normal", owned: true },
+      { id: 2, name: "Family", color: "red", kind: "normal", owned: true },
+      { id: 3, name: "Friends", color: "gold", kind: "normal", owned: true },
+      { id: 4, name: "Health", color: "green", kind: "normal", owned: true },
+      { id: 5, name: "Travel", color: "teal", kind: "normal", owned: true },
+      { id: 6, name: "Hobbies", color: "purple", kind: "normal", owned: true },
+      { id: 7, name: "Personal", color: "brown", kind: "normal", owned: true }]) },
+    { name: "Google", calendars: sampleCalendarsOf("google", [
+      { id: "team@example.com", name: "Team", color: "#9fe1e7", kind: "", owned: true }]) },
+    { name: "Feeds", calendars: sampleCalendarsOf("feeds", [
+      { id: "f0123456789abcdef", name: "Holidays", color: "orange", kind: "feed", owned: false }]) }
+  ])
+  readonly property var sampleWritable: Cal.writableCalendars(sampleCalendars.filter(function(c) { return c.source !== "feeds" }))
+  readonly property var sampleFeeds: [{ id: "f0123456789abcdef", name: "Holidays", color: "orange", host: "calendar.example.com" }]
+
+  readonly property var sampleTracks: Cal.parseTimeTracks(JSON.stringify([
+    // One track, so the busy sample day still fits the panel on a
+    // 1080p-sized screen at Omarchy's default font size.
+    { id: 1, name: "Writing", named: true, starts_at: at(0, 8, 0), ends_at: at(0, 9, 10) }
+  ]))
 
   // ---- Stand-ins for the bar and for BarWidget's calendar state.
   QtObject {
@@ -107,8 +137,8 @@ ShellRoot {
     property int barSize: 40
     property var activePopout: null
     property var clickTargets: []
-    property color barForeground: Color.foreground
-    property color foreground: Color.foreground
+    property color barForeground: Commons.Color.foreground
+    property color foreground: Commons.Color.foreground
     property string fontFamily: Style.font.family
     property var shell: QtObject { function updateEntryInline(id, entry) { return true } }
     function requestPopout(key) { activePopout = key }
@@ -120,28 +150,52 @@ ShellRoot {
 
   QtObject {
     id: host
-    property var settings: ({ id: "pomartel.omacal", barEvent: "soon" })
+    property var settings: ({ id: "crmne.omacal", barEvent: "soon", googleEnabled: true })
     property date displayDate: shell.now
     property bool hour24: true
     property var events: shell.sampleEvents
     property var byDay: Cal.indexByDay(shell.sampleEvents)
     property var calendars: shell.sampleCalendars
-    property var writableCalendars: shell.sampleCalendars
+    property var writableCalendars: shell.sampleWritable
+    property var timeTrack: null
+    property var timeTracks: shell.sampleTracks
+    property var tracksByDay: Cal.tracksByDay(shell.sampleTracks)
+    property string renameTrackId: ""
     property bool writing: false
     property string writeError: ""
     property string lastError: ""
     property bool loaded: true
     property bool loading: false
-    property string backendMode: "google"
-    property string backendName: "Google Agenda"
+    property string backendMode: "ready"
+    property string backendName: "HEY, Google, Feeds"
+    property bool anySourceReady: true
+    property string dayLinkName: "HEY"
+    property string backendVersion: "1.7.0"
+    property var capabilities: ({ create: true, edit: true, delete: true, watch: true, timeTracking: true, dayLink: true })
     signal writeFinished(bool ok, string message)
     function showWeeks(keys) {}
     function refreshCalendar(force) {}
     function dayUrl(key) { return "" }
-    function modeNote() { return "Calendars selected in Google Agenda are displayed." }
+    function modeNote() { return "Calendars switched off in HEY are already left out." }
     function openUrl(url) {}
     function addEvent(form) { return false }
+    function editEvent(event, before, form) { return false }
+    function editsOneDay(event) { return Cal.editsOneDay(event, true) }
+    function canEdit(event) { return !!event && event.source !== "feeds" }
+    function canDelete(event) { return !!event && !event.recurring && event.source !== "feeds" }
+    function calendarsFor(event) {
+      return event ? shell.sampleWritable.filter(function(c) { return c.source === event.source }) : shell.sampleWritable
+    }
+    function serviceName(event) { return event && event.source === "google" ? "Google" : "HEY" }
+    function sourceStatus(id) {
+      return { enabled: true, ready: true, account: id === "google" ? "sam@example.com" : "", error: "", name: id }
+    }
+    function reloadSource(id) {}
     function deleteEvent(event, key) { return false }
+    function startTimeTrack() {}
+    function stopTimeTrack() {}
+    function renameTimeTrack(id, name) {}
+    function deleteTimeTrack(id) {}
   }
 
   // A bar-shaped strip across the top of the screen, holding the anchor the
@@ -188,8 +242,8 @@ ShellRoot {
       id: card
       width: Style.space(480)
       height: form.implicitHeight + Style.space(36)
-      color: Color.popups.background
-      border.color: Color.popups.border
+      color: Commons.Color.popups.background
+      border.color: Commons.Color.popups.border
       border.width: 1
       radius: Style.cornerRadius
 
@@ -198,9 +252,13 @@ ShellRoot {
         anchors.fill: parent
         anchors.margins: Style.space(18)
         todayKey: shell.todayKey
-        calendars: shell.sampleCalendars
-        defaultCalendarId: 1
-        foreground: Color.popups.text
+        calendars: shell.sampleWritable
+        defaultCalendarKey: "hey:1"
+        foreground: Commons.Color.popups.text
+        // A fixed zone list, so the render does not depend on this machine's.
+        loadZones: false
+        localZone: "Europe/Berlin"
+        zones: ["America/New_York", "Asia/Tokyo", "Europe/Berlin", "Europe/London", "UTC"]
       }
     }
   }
@@ -223,7 +281,7 @@ ShellRoot {
       id: labelBox
       width: labelButton.implicitWidth + 48
       height: 40
-      color: Color.background
+      color: Commons.Color.background
 
       WidgetButton {
         id: labelButton
@@ -271,29 +329,56 @@ ShellRoot {
         return
       }
       if (phase === 3) shell.save(cardItem, "panel-full.png")
-      if (phase === 4) panel.openSettings()
+      if (phase === 4) {
+        // The feed list is the sample's, never this machine's.
+        var settingsView = shell.findByProperty(panel, "feedContext")
+        settingsView.loadsFeeds = false
+        settingsView.feeds = shell.sampleFeeds
+        panel.openSettings()
+      }
       if (phase === 6) shell.save(cardItem, "settings-full.png")
       if (phase === 7) {
         panel.closeSettings()
+        var review = null
+        for (var i = 0; i < shell.sampleEvents.length; i++)
+          if (shell.sampleEvents[i].title === "Design review: onboarding") review = shell.sampleEvents[i]
+        panel.editEvent(review)
+      }
+      if (phase === 9) shell.save(cardItem, "edit-full.png")
+      if (phase === 10) {
         panel.close()
         cardWindow.visible = true
         form.reset()
       }
-      if (phase === 8) {
-        form.titleInput = "Coffee with Alex"
-        form.dayInput = "tomorrow"
+      if (phase === 11) {
+        form.titleInput = "Team offsite"
+        form.dayInput = "fri"
+        form.untilInput = "sun"
         form.startInput = "10:00"
-        form.endInput = "11:00"
-        form.locationInput = "Café Luna"
-        form.calendarId = 3
+        form.endInput = "16:00"
+        form.calendarKey = "hey:1"
+        // Where?, as typed, with the places it would offer. Suggestions are
+        // switched off first and the list is filled by hand, so the render
+        // never asks a places service and shows made-up places only.
+        form.placeSuggestions = false
+        form.locationInput = "harbour"
+        var places = shell.findByProperty(form, "sessionToken")
+        places.googleKey = ""
+        places.active = true
+        places.results = [
+          { title: "Harbour House", detail: "Kaistraße 12, Hamburg, Germany", value: "Harbour House, Kaistraße 12, Hamburg, Germany" },
+          { title: "Harbour Hall", detail: "Hafenweg 3, Hamburg, Germany", value: "Harbour Hall, Hafenweg 3, Hamburg, Germany" },
+          { title: "Harbour Café", detail: "Am Kai 7, Kiel, Germany", value: "Harbour Café, Am Kai 7, Kiel, Germany" }
+        ]
+        form.placeCursor = 0
       }
-      if (phase === 9) shell.save(card, "quick-add.png")
-      if (phase === 10) {
+      if (phase === 12) shell.save(card, "quick-add.png")
+      if (phase === 13) {
         cardWindow.visible = false
         labelWindow.visible = true
       }
-      if (phase === 11) shell.save(labelBox, "bar.png")
-      if (phase === 12) Qt.quit()
+      if (phase === 14) shell.save(labelBox, "bar.png")
+      if (phase === 15) Qt.quit()
     }
   }
 }

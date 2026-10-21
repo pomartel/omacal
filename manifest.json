@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "pomartel.omacal",
   "name": "OmaCal",
-  "version": "1.0.2-google.1",
+  "version": "1.2.1-google.1",
   "author": "Carmine Paolino",
   "license": "MIT",
   "description": "Horloge et calendrier Google Agenda en français : événements, rappels et ajout rapide via gws.",
@@ -17,37 +17,60 @@
     "overlay": "QuickAdd.qml"
   },
   "barWidget": {
-    "displayName": "OmaCal",
-    "description": "Horloge et calendrier avec vos événements, en français.",
+    "displayName": "Calendar",
+    "description": "The stock date/time label and calendar popup, with your calendar in it.",
     "category": "Time",
     "aliases": [
       "calendar",
       "clock",
+      "hey",
       "events",
-      "omacal"
+      "omacal",
+      "google",
+      "ics"
     ],
     "allowMultiple": false,
     "defaultSection": "center",
     "defaults": {
-      "googleAccount": "",
+      "heyEnabled": false,
+      "googleEnabled": true,
+      "feedsEnabled": false,
       "alertLeadMinutes": 15,
       "notifications": true,
+      "liveSync": true,
       "timeFormat": "auto",
       "refreshIntervalSec": 300,
       "quickAddShortcut": "ALT + SHIFT + SPACE",
-      "barEvent": "soon"
+      "barEvent": "soon",
+      "placeSuggestions": false,
+      "googleAccount": ""
     },
     "schema": [
       {
-        "key": "googleAccount",
-        "type": "string",
-        "label": "Adresse Google (doit correspondre à gws auth status)",
-        "defaultValue": ""
+        "key": "heyEnabled",
+        "type": "boolean",
+        "label": "Read HEY",
+        "defaultValue": true,
+        "description": "Reads HEY through hey-cli."
+      },
+      {
+        "key": "googleEnabled",
+        "type": "boolean",
+        "label": "Read Google Calendar",
+        "defaultValue": false,
+        "description": "Reads and writes Google Calendar, signed in through gws, the Google Workspace CLI (`gws auth login -s calendar`)."
+      },
+      {
+        "key": "feedsEnabled",
+        "type": "boolean",
+        "label": "Read calendar feeds",
+        "defaultValue": true,
+        "description": "Reads the .ics feeds added in Calendar for Omarchy's own settings, which keeps their addresses in ~/.config/omacal/feeds.json."
       },
       {
         "key": "barEvent",
         "type": "enum",
-        "label": "Événement dans la barre",
+        "label": "Event in the bar",
         "options": [
           "soon",
           "name",
@@ -56,48 +79,62 @@
           "off"
         ],
         "defaultValue": "soon",
-        "description": "« soon » : nom et heure, du premier rappel jusqu’à la fin. « name » ou « time » : nom ou heure seulement. « next » : prochain événement d’aujourd’hui. « off » : horloge seule avec icône de rappel."
+        "description": "\"soon\" shows an event's name and when, from its earliest reminder until it ends. \"name\" and \"time\" show only one of the two. \"next\" always shows today's next event. \"off\" shows only the calendar glyph."
       },
       {
         "key": "notifications",
         "type": "boolean",
-        "label": "Afficher les rappels dans les notifications",
+        "label": "Show event reminders as notifications",
         "defaultValue": true,
-        "description": "Utilise les rappels des événements. Google utilise les rappels contextuels, y compris ceux définis par défaut dans le calendrier."
+        "description": "Uses the reminders set on each event in HEY or Google, and the alarms a feed carries."
+      },
+      {
+        "key": "placeSuggestions",
+        "type": "boolean",
+        "label": "Suggest places",
+        "defaultValue": true,
+        "description": "Offers places while you type in Where?, from Google with a Google Maps API key (set in Calendar for Omarchy's own settings) or else OpenStreetMap. What you type there is sent to that service."
       },
       {
         "key": "quickAddShortcut",
         "type": "string",
-        "label": "Raccourci d’ajout rapide",
+        "label": "Quick add shortcut",
         "defaultValue": "ALT + SHIFT + SPACE",
-        "description": "Ouvre le formulaire depuis n’importe où. Laissez vide pour désactiver. Les raccourcis déjà utilisés sont conservés."
+        "description": "Opens the new-event card from anywhere. Leave empty to turn it off. A shortcut already in use is not taken."
       },
       {
         "key": "alertLeadMinutes",
         "type": "integer",
-        "label": "Préavis de l’icône du calendrier (minutes)",
+        "label": "Show the calendar icon this many minutes ahead",
         "min": 0,
         "max": 240,
         "step": 5,
         "defaultValue": 15,
-        "description": "L’icône apparaît ce nombre de minutes avant le début et reste jusqu’à la fin. 0 désactive le préavis."
+        "description": "The icon appears this long before an event starts and stays until it ends. 0 turns it off."
       },
       {
         "key": "timeFormat",
         "type": "enum",
-        "label": "Format des heures",
+        "label": "Event times",
         "options": [
           "auto",
           "12",
           "24"
         ],
         "defaultValue": "auto",
-        "description": "« auto » suit les paramètres régionaux du système."
+        "description": "\"auto\" follows the system locale."
+      },
+      {
+        "key": "liveSync",
+        "type": "boolean",
+        "label": "Follow HEY changes live",
+        "defaultValue": true,
+        "description": "Keeps a `hey watch` running so edits made in HEY show up within seconds. Google and feeds are polled at the refresh interval."
       },
       {
         "key": "refreshIntervalSec",
         "type": "integer",
-        "label": "Intervalle d’actualisation (secondes)",
+        "label": "Refresh interval (seconds)",
         "min": 30,
         "max": 3600,
         "step": 30,
@@ -106,9 +143,15 @@
       {
         "key": "hiddenCalendars",
         "type": "string",
-        "label": "Calendriers masqués",
+        "label": "Hidden calendars",
         "defaultValue": "",
-        "description": "Noms des calendriers à masquer, séparés par des virgules."
+        "description": "Comma-separated calendars to leave out: keys such as hey:7, as the settings write them, or names, which hide that name on every service. Needed on hey-cli 1.3, which cannot see which calendars are switched off in HEY."
+      },
+      {
+        "key": "googleAccount",
+        "type": "string",
+        "label": "Adresse Google (doit correspondre à gws auth status)",
+        "defaultValue": ""
       }
     ]
   }

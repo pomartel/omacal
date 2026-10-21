@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Commons as Commons
 import qs.Commons
 
 // The keyboard focus mark for a row that is not itself a control (the
@@ -8,5 +9,5 @@ Rectangle {
   color: "transparent"
   radius: Math.max(4, Style.cornerRadius)
   border.width: Math.max(1, Style.normalBorderWidth)
-  border.color: Color.accent
+  border.color: Commons.Color.accent
 }

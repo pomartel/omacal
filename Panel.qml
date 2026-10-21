@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import qs.Commons as Commons
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
@@ -9,18 +10,19 @@ import "Calendar.js" as Cal
 // sit beside the weather panel — same hero-over-detail composition, same
 // spacing scale, same small-caps labels.
 //
-// Arrow keys move the selected day; Ctrl+arrows, chevrons, and the
-// scroll wheel change the displayed month.
+// The grid is a read-out rather than a picker: today is the only marked
+// day, and the only thing that moves is which month is on screen —
+// chevrons, the scroll wheel, and the arrow keys all step it.
 //
 // BarWidget.qml owns the bar label and hands this panel the button to
 // anchor against.
 //
-// Google Agenda is laid over the stock calendar rather than beside it. Under each day
-// sits a chip per calendar color, carrying how many of that day's events
-// wear it. Clicking a day selects it, and the day view under the grid shows
-// what is on it as a day view, with a button to add an event
-// there. BarWidget.qml owns the calendar data, since reminders have to fire with
-// this panel closed.
+// Your calendars (HEY, Google, feeds) are laid over the stock calendar
+// rather than beside it. Under each day sits a chip per calendar color,
+// carrying how many of that day's events wear it. Clicking a day selects
+// it, and the day view under the grid shows what is on it the way HEY draws
+// a day, with a button to add an event there. BarWidget.qml owns the
+// calendar data, since reminders have to fire with this panel closed.
 Panel {
   id: root
   moduleName: "pomartel.omacal"
@@ -71,13 +73,16 @@ Panel {
   // convention. Clicking the grid's "W" heading writes the choice back to
   // shell.json.
   readonly property int weekStart: Model.normalizedWeekStart(setting("weekStartDay", null), Qt.locale().firstDayOfWeek)
-  // French Canadian labels; the first day of the week remains configurable.
+  // The interface is English throughout, so day names are not taken from the
+  // system locale. Where the week starts still is: that is a regional
+  // convention rather than a translation, and it stays overridable above.
   readonly property var labelLocale: Qt.locale("fr_CA")
   readonly property string nextWeekStartLabel: labelLocale.dayName(Model.toggledWeekStart(weekStart), Locale.LongFormat)
   readonly property var weekdays: Model.weekdayOrder(weekStart)
   readonly property var weeks: Model.monthGrid(viewYear, viewMonth, weekStart, todayKey)
 
-  // ---- Events. Everything below reads the host's state; nothing here fetches.
+  // ---- The calendars. Everything below reads the host's state; nothing
+  //      here fetches.
   readonly property var byDay: hostWidget ? hostWidget.byDay : ({})
   readonly property bool hour24: hostWidget ? hostWidget.hour24 === true : true
   // The host's clock ticks every minute, which is what "maintenant" and "past" are
@@ -91,41 +96,7 @@ Panel {
   readonly property bool selectedIsToday: selectedKey === todayKey
   property bool composing: false
   property bool showingSettings: false
-  property bool keyboardHelpVisible: false
-
-  function handleCalendarKey(event) {
-    if (root.editingLife || root.composing || root.showingSettings) return
-    var key = event.key
-    var text = event.text || ""
-    var ctrl = (event.modifiers & Qt.ControlModifier) !== 0
-    var dx = key === Qt.Key_Left || key === Qt.Key_H ? -1
-      : key === Qt.Key_Right || key === Qt.Key_L ? 1 : 0
-    var dy = key === Qt.Key_Up || key === Qt.Key_K ? -1
-      : key === Qt.Key_Down || key === Qt.Key_J ? 1 : 0
-    if (dx !== 0 || dy !== 0) {
-      if (ctrl) root.moveMonth(dx || dy, true)
-      else root.moveSelection(dx || dy * 7)
-    } else if (key === Qt.Key_Home || key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Space || text.toLowerCase() === "t") root.goToToday()
-    else if (key === Qt.Key_Escape) root.close()
-    else if (key === Qt.Key_Tab || key === Qt.Key_Backtab)
-      root.switchPanel((event.modifiers & Qt.ShiftModifier) || key === Qt.Key_Backtab ? -1 : 1)
-    else if (text === "?") root.keyboardHelpVisible = !root.keyboardHelpVisible
-    else if (text === "[") root.moveMonth(-1)
-    else if (text === "]") root.moveMonth(1)
-    else if (text === "{") root.moveYear(-1)
-    else if (text === "}") root.moveYear(1)
-    else if (text.toLowerCase() === "w") root.toggleWeekStart()
-    else if (text.toLowerCase() === "n") root.newEvent()
-    else if (text.toLowerCase() === "s") root.openSettings()
-    else if (text.toLowerCase() === "r") root.refreshCalendar()
-    else if (text.toLowerCase() === "o") root.openSelectedDay()
-    else if (text === ",") root.moveSelection(-1)
-    else if (text === ".") root.moveSelection(1)
-    else if (text === "<") root.moveSelection(-7)
-    else if (text === ">") root.moveSelection(7)
-    else return
-    event.accepted = true
-  }
+  property string deletingKey: ""
 
   function openSettings() {
     root.composing = false
@@ -137,11 +108,19 @@ Panel {
     root.showingSettings = false
     Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
   }
+  readonly property var selectedTracks: hostWidget && hostWidget.tracksByDay ? (hostWidget.tracksByDay[selectedKey] || []) : []
+  readonly property bool renamingTrack: !!hostWidget && hostWidget.renameTrackId !== ""
+
+  function finishRenaming() {
+    if (root.hostWidget) root.hostWidget.renameTrackId = ""
+    Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
+  }
+
   onWeeksChanged: requestVisibleWeeks()
   onHostWidgetChanged: requestVisibleWeeks()
 
-  // Every Monday-based week the grid touches: six rows, and a seventh when the rows
-  // start on Sunday and straddle Monday weeks.
+  // Every HEY week the grid touches: six rows, and a seventh when the rows
+  // start on Sunday and straddle HEY's Monday weeks.
   function requestVisibleWeeks() {
     if (!root.hostWidget || !root.weeks || root.weeks.length === 0) return
     var first = root.weeks[0].days[0].key
@@ -167,10 +146,101 @@ Panel {
     }
   }
 
+  property bool keyboardHelpVisible: false
+
+  function handleCalendarKey(event) {
+    if (root.editingLife || root.composing || root.showingSettings) return
+    var key = event.key
+    var text = event.text || ""
+    var ctrl = (event.modifiers & Qt.ControlModifier) !== 0
+    var dx = key === Qt.Key_Left || key === Qt.Key_H ? -1
+      : key === Qt.Key_Right || key === Qt.Key_L ? 1 : 0
+    var dy = key === Qt.Key_Up || key === Qt.Key_K ? -1
+      : key === Qt.Key_Down || key === Qt.Key_J ? 1 : 0
+    if (dx !== 0 || dy !== 0) {
+      if (ctrl) root.moveMonth(dx || dy, true)
+      else root.moveSelection(dx || dy * 7)
+    } else if (key === Qt.Key_Home || key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Space || text.toLowerCase() === "t") root.goToToday()
+    else if (key === Qt.Key_Escape) root.close()
+    else if (key === Qt.Key_Tab || key === Qt.Key_Backtab)
+      root.switchPanel((event.modifiers & Qt.ShiftModifier) || key === Qt.Key_Backtab ? -1 : 1)
+    else if (text === "?") root.keyboardHelpVisible = !root.keyboardHelpVisible
+    else if (text === "[") root.moveMonth(-1)
+    else if (text === "]") root.moveMonth(1)
+    else if (text === "{") root.moveYear(-1)
+    else if (text === "}") root.moveYear(1)
+    else if (text.toLowerCase() === "w") root.toggleWeekStart()
+    else if (text.toLowerCase() === "e") root.editEvent(root.focusEvent())
+    else if (/^[1-9]$/.test(text) && Number(text) <= root.selectedEvents.length) root.editEvent(root.selectedEvents[Number(text) - 1])
+    else if (text.toLowerCase() === "n") root.newEvent()
+    else if (text.toLowerCase() === "s") root.openSettings()
+    else if (text.toLowerCase() === "r") root.refreshCalendar()
+    else if (text.toLowerCase() === "o") root.openSelectedDay()
+    else if (text === ",") root.moveSelection(-1)
+    else if (text === ".") root.moveSelection(1)
+    else if (text === "<") root.moveSelection(-7)
+    else if (text === ">") root.moveSelection(7)
+    else return
+    event.accepted = true
+  }
+
   function newEvent() {
     if (!root.opened) root.open()
     root.composing = true
     Qt.callLater(function() { eventForm.reset() })
+  }
+
+  // Opens an event in the form, to change it here rather than in its
+  // service. One its service will not let Calendar for Omarchy change (a feed, an
+  // invitation) opens in the service instead.
+  function editEvent(event) {
+    if (!root.hostWidget || !event) return
+    if (!root.canEdit(event)) {
+      root.openEvent(event)
+      return
+    }
+    var values = Cal.eventFormValues(event, eventForm.localZone)
+    if (!values) {
+      root.openEvent(event)
+      return
+    }
+    if (!root.opened) root.open()
+    root.showingSettings = false
+    root.composing = true
+    var oneDay = root.hostWidget.editsOneDay(event)
+    Qt.callLater(function() { eventForm.load(event, values, oneDay) })
+  }
+
+  function canEdit(event) {
+    var host = root.hostWidget
+    if (!host || !event) return false
+    return typeof host.canEdit === "function" ? host.canEdit(event) : host.capabilities.edit === true
+  }
+
+  function canDelete(event) {
+    var host = root.hostWidget
+    if (!host || !event) return false
+    return typeof host.canDelete === "function" ? host.canDelete(event)
+      : (!event.recurring && /^\d+$/.test(String(event.seriesId)))
+  }
+
+  function openEvent(event) {
+    if (!root.hostWidget || !event) return
+    root.hostWidget.openUrl(event.url !== "" ? event.url : root.hostWidget.dayUrl(root.selectedKey))
+  }
+
+  // The event the keyboard means on the selected day: the one on now, else
+  // the next, else the first.
+  function focusEvent() {
+    var list = root.selectedEvents
+    if (list.length === 0) return null
+    var pick = Cal.currentOrNextEvent(list, root.nowMs)
+    return pick || list[0]
+  }
+
+  function joinEvent(event) {
+    var target = event || root.focusEvent()
+    if (root.hostWidget && target && target.joinUrl !== "") root.hostWidget.openUrl(target.joinUrl)
   }
 
   function cancelComposing() {
@@ -180,7 +250,11 @@ Panel {
 
   function submitEvent(form) {
     if (!root.hostWidget) return
-    if (form.calendarId) persistSettings({ lastCalendarId: form.calendarId })
+    if (eventForm.editing) {
+      if (root.hostWidget.editEvent(eventForm.editing, eventForm.opened, form)) root.selectDayKeepingForm(form.date)
+      return
+    }
+    if (String(form.calendarKey || "") !== "") persistSettings({ lastCalendarId: String(form.calendarKey) })
     if (root.hostWidget.addEvent(form)) root.selectDayKeepingForm(form.date)
   }
 
@@ -203,16 +277,16 @@ Panel {
   }
 
   function activateEvent(event) {
-    if (!root.hostWidget || !event) return
-    root.hostWidget.openUrl(event.joinUrl !== "" ? event.joinUrl : (event.url !== "" ? event.url : root.hostWidget.dayUrl(root.selectedKey)))
+    root.editEvent(event)
   }
 
   function deleteEvent(event) {
-    if (!root.hostWidget || !event || root.hostWidget.writing) return
-    root.hostWidget.deleteEvent(event, root.selectedKey)
+    if (!root.hostWidget || !event) return
+    root.deletingKey = event.key
+    if (!root.hostWidget.deleteEvent(event, root.selectedKey)) root.deletingKey = ""
   }
 
-  // The selected day's heading, using the panel locale.
+  // "MON 28": HEY's day heading, in English like the rest of the grid.
   function dayHeading(key) {
     var date = Cal.dateFromKey(key)
     return root.weekdayLabel(date.getDay()) + " " + date.getDate()
@@ -233,6 +307,7 @@ Panel {
     target: root.hostWidget
     ignoreUnknownSignals: true
     function onWriteFinished(ok, message) {
+      root.deletingKey = ""
       if (ok && root.composing) root.cancelComposing()
     }
   }
@@ -240,7 +315,7 @@ Panel {
 
   // Guarded so the widget renders before the bar is injected (the bar-widget
   // contract instantiates it bare).
-  readonly property color contentForeground: bar ? bar.foreground : Color.foreground
+  readonly property color contentForeground: bar ? bar.foreground : Commons.Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property int cellWidth: Style.space(52)
@@ -394,7 +469,7 @@ Panel {
     setWeekStart(Model.toggledWeekStart(root.weekStart))
   }
 
-  // French short day names, matching the rest of the interface.
+  // English short day names, matching the rest of the interface.
   function weekdayLabel(weekday) {
     return String(labelLocale.dayName(weekday, Locale.ShortFormat)).toUpperCase()
   }
@@ -447,6 +522,31 @@ Panel {
           width: Math.max(calendarScroll.width, gridColumn.width)
           spacing: Style.space(8)
 
+          Text {
+            visible: root.keyboardHelpVisible
+            width: parent.width
+            textFormat: Text.PlainText
+            wrapMode: Text.WordWrap
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.body
+            text: "RACCOURCIS CLAVIER\n"
+              + "← / → ou H / L : jour précédent / suivant\n"
+              + "↑ / ↓ ou K / J : semaine précédente / suivante\n"
+              + "Ctrl + flèches ou H/J/K/L : mois précédent / suivant\n"
+              + "[ / ] : mois · { / } : année\n"
+              + "Début / Entrée / T : aujourd’hui · W : début de semaine\n"
+              + "N : nouvel événement · R : actualiser · O : ouvrir dans le navigateur\n"
+              + "S : paramètres · Tab / Maj+Tab : changer de panneau\n"
+              + "? : afficher/masquer l’aide · Échap : fermer\n\n"
+              + "NOUVEL ÉVÉNEMENT\n"
+              + "Tab / Maj+Tab : changer de champ · ↑ / ↓ : ajuster la date/l’heure\n"
+              + "Maj + ↑ / ↓ dans la date : changer de semaine\n"
+              + "Alt + ← / → : calendrier · Alt + ↑ / ↓ : rappel\n"
+              + "Alt+A : journée entière · Entrée : enregistrer · Échap : annuler\n"
+              + "Raccourci d’ajout rapide : configurable dans les paramètres"
+          }
+
           // ---- Hero: today, centered. Once the view has stepped back
           //      it is also the way home — clicking the date you are
           //      looking for beats hunting for a reset button.
@@ -466,7 +566,7 @@ Panel {
                 anchors.baseline: heroDate.baseline
                 text: "󰃭"
                 color: heroMouse.containsMouse
-                  ? Style.hoverStateColor(root.contentForeground, Color.accent)
+                  ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
                   : root.contentForeground
                 font.family: root.contentFontFamily
                 // Decorative, and deliberately outside the Style.font.*
@@ -481,7 +581,7 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.today.toLocaleDateString(root.labelLocale, "d MMMM")
                 color: heroMouse.containsMouse
-                  ? Style.hoverStateColor(root.contentForeground, Color.accent)
+                  ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
                   : root.contentForeground
                 font.family: root.contentFontFamily
                 font.pixelSize: 52
@@ -506,31 +606,6 @@ Panel {
                 fontFamily: root.contentFontFamily
               }
             }
-          }
-
-          Text {
-            visible: root.keyboardHelpVisible
-            width: parent.width
-            textFormat: Text.PlainText
-            wrapMode: Text.WordWrap
-            color: root.contentForeground
-            font.family: root.contentFontFamily
-            font.pixelSize: Style.font.body
-            text: "RACCOURCIS CLAVIER\n"
-              + "← / → ou H / L : jour précédent / suivant\n"
-              + "↑ / ↓ ou K / J : semaine précédente / suivante\n"
-              + "Ctrl + flèches ou H/J/K/L : mois précédent / suivant\n"
-              + "[ / ] : mois · { / } : année\n"
-              + "Début / Entrée / T : aujourd’hui · W : début de semaine\n"
-              + "N : nouvel événement · R : actualiser · O : ouvrir dans le navigateur\n"
-              + "S : paramètres · Tab / Maj+Tab : changer de panneau\n"
-              + "? : afficher/masquer l’aide · Échap : fermer\n\n"
-              + "NOUVEL ÉVÉNEMENT\n"
-              + "Tab / Maj+Tab : changer de champ · ↑ / ↓ : ajuster la date/l’heure\n"
-              + "Maj + ↑ / ↓ dans la date : changer de semaine\n"
-              + "Alt + ← / → : calendrier · Alt + ↑ / ↓ : rappel\n"
-              + "Alt+A : journée entière · Entrée : enregistrer · Échap : annuler\n"
-              + "Raccourci d’ajout rapide : configurable dans les paramètres"
           }
 
           // ---- Year progress, doubling as the rule under the hero:
@@ -567,16 +642,17 @@ Panel {
                   font.letterSpacing: 1
                 }
 
-                TextField {
+                KeyField {
                   id: bornField
                   width: Style.space(70)
                   anchors.verticalCenter: parent.verticalCenter
                   placeholderText: "année"
                   foreground: root.contentForeground
                   font.family: root.contentFontFamily
-                  inputMethodHints: Qt.ImhDigitsOnly
+                  allowed: /[0-9]/
+                  maximumLength: 4
 
-                  Keys.onPressed: function(event) { root.handleLifeKey(event, expectancyField) }
+                  keyHandler: function(event) { root.handleLifeKey(event, expectancyField) }
                 }
 
                 Text {
@@ -590,16 +666,17 @@ Panel {
                   font.letterSpacing: 1
                 }
 
-                TextField {
+                KeyField {
                   id: expectancyField
                   width: Style.space(60)
                   anchors.verticalCenter: parent.verticalCenter
                   placeholderText: "90"
                   foreground: root.contentForeground
                   font.family: root.contentFontFamily
-                  inputMethodHints: Qt.ImhDigitsOnly
+                  allowed: /[0-9]/
+                  maximumLength: 4
 
-                  Keys.onPressed: function(event) { root.handleLifeKey(event, bornField) }
+                  keyHandler: function(event) { root.handleLifeKey(event, bornField) }
                 }
               }
 
@@ -644,7 +721,7 @@ Panel {
                   width: Math.round(parent.width * root.yearDone)
                   height: parent.height
                   radius: parent.radius
-                  color: Style.selectedStateColor(root.contentForeground, Color.accent)
+                  color: Style.selectedStateColor(root.contentForeground, Commons.Color.accent)
 
                   Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                 }
@@ -702,7 +779,7 @@ Panel {
                   width: Math.round(parent.width * root.lifeDone)
                   height: parent.height
                   radius: parent.radius
-                  color: Style.selectedStateColor(root.contentForeground, Color.accent)
+                  color: Style.selectedStateColor(root.contentForeground, Commons.Color.accent)
 
                   Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                 }
@@ -764,14 +841,14 @@ Panel {
                   height: Style.space(16)
                   radius: Style.cornerRadius
                   color: weekStartMouse.containsMouse
-                    ? Style.hoverFillFor(root.contentForeground, Color.accent)
+                    ? Style.hoverFillFor(root.contentForeground, Commons.Color.accent)
                     : "transparent"
 
                   Text {
                     anchors.centerIn: parent
                     text: "S"
                     color: weekStartMouse.containsMouse
-                      ? Style.hoverStateColor(root.contentForeground, Color.accent)
+                      ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
                       : Qt.darker(root.contentForeground, 1.9)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
@@ -859,10 +936,10 @@ Panel {
                       // The selected day takes a soft fill. Today is marked on
                       // its number instead (below), so the two never compete.
                       color: selected
-                        ? Style.selectionFillFor(root.contentForeground, Color.accent)
-                        : (cellMouse.containsMouse ? Style.hoverFillFor(root.contentForeground, Color.accent) : "transparent")
+                        ? Style.selectionFillFor(root.contentForeground, Commons.Color.accent)
+                        : (cellMouse.containsMouse ? Style.hoverFillFor(root.contentForeground, Commons.Color.accent) : "transparent")
 
-                      // Today: the number on the warm
+                      // Today, the way HEY marks it: the number on HEY's warm
                       // orange, the same as the day view's heading.
                       Rectangle {
                         visible: modelData.today
@@ -913,7 +990,7 @@ Panel {
                             radius: Math.max(3, Math.round(height / 3.5))
                             color: modelData.overflow
                               ? Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.28)
-                              : Cal.calendarColor(modelData.color, Color.accent)
+                              : Cal.calendarColor(modelData.color, Commons.Color.accent)
 
                             Text {
                               id: chipText
@@ -989,7 +1066,7 @@ Panel {
                 // "MAY 2026" and a "SEPTEMBER 2026".
                 width: Style.space(130)
                 horizontalAlignment: Text.AlignHCenter
-                text: root.viewDate.toLocaleDateString(root.labelLocale, "MMMM yyyy").toUpperCase()
+                text: Qt.formatDate(root.viewDate, "MMMM yyyy").toUpperCase()
                 color: Qt.darker(root.contentForeground, 1.4)
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.body
@@ -1022,8 +1099,8 @@ Panel {
             }
           }
 
-          // ---- The selected day, its heading (today in
-          //      warm orange), the all-day pills, then a block per event.
+          // ---- The selected day, as HEY draws one: its heading (today in
+          //      HEY's orange), the all-day pills, then a block per event.
           //      The new-event form takes this place while it is open.
           Item {
             width: parent.width
@@ -1093,7 +1170,7 @@ Panel {
                   text: {
                     var label = Cal.relativeDayLabel(root.selectedKey, root.todayKey)
                     var date = Cal.dateFromKey(root.selectedKey)
-                    return root.selectedIsToday ? label : label + " · " + date.toLocaleDateString(root.labelLocale, "d MMMM")
+                    return root.selectedIsToday ? label : label + " · " + Qt.formatDate(date, "d MMMM")
                   }
                   color: Qt.darker(root.contentForeground, 1.5)
                   font.family: root.contentFontFamily
@@ -1111,7 +1188,7 @@ Panel {
                   Button {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !root.selectedIsToday || !root.viewingCurrentMonth
-                    text: "Auj"
+                    text: "Aujourd’hui"
                     tooltipText: "Revenir à aujourd’hui (T)"
                     bordered: true
                     foreground: root.contentForeground
@@ -1124,7 +1201,7 @@ Panel {
                   PanelActionButton {
                     iconText: "󰐕"
                     tooltipText: "Nouvel événement (N)"
-                    enabled: !!root.hostWidget && root.hostWidget.backendMode !== ""
+                    enabled: !!root.hostWidget && root.hostWidget.writableCalendars.length > 0
                     foreground: root.contentForeground
                     fontFamily: root.contentFontFamily
                     onClicked: root.newEvent()
@@ -1132,8 +1209,8 @@ Panel {
 
                   PanelActionButton {
                     iconText: "󰏌"
-                    visible: !!root.hostWidget
-                    tooltipText: "Ouvrir cette journée dans " + (root.hostWidget ? root.hostWidget.backendName : "") + " (O)"
+                    visible: !!root.hostWidget && root.hostWidget.capabilities.dayLink
+                    tooltipText: "Ouvrir cette journée dans " + (root.hostWidget ? (root.hostWidget.dayLinkName || root.hostWidget.backendName) : "") + " (O)"
                     foreground: root.contentForeground
                     fontFamily: root.contentFontFamily
                     onClicked: root.openSelectedDay()
@@ -1164,14 +1241,19 @@ Panel {
                 width: parent.width
                 dayKey: root.selectedKey
                 todayKey: root.todayKey
-                calendars: root.hostWidget ? root.hostWidget.writableCalendars : []
-                defaultCalendarId: root.setting("lastCalendarId", 0) || 0
+                calendars: !root.hostWidget ? []
+                  : (typeof root.hostWidget.calendarsFor === "function" ? root.hostWidget.calendarsFor(eventForm.editing) : root.hostWidget.writableCalendars)
+                defaultCalendarKey: Cal.normalizedCalendarKey(root.setting("lastCalendarId", ""))
                 busy: !!root.hostWidget && root.hostWidget.writing
                 error: root.hostWidget ? root.hostWidget.writeError : ""
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
+                serviceName: !root.hostWidget ? "HEY"
+                  : (eventForm.editing && typeof root.hostWidget.serviceName === "function" ? root.hostWidget.serviceName(eventForm.editing) : root.hostWidget.backendName)
+                placeSuggestions: root.setting("placeSuggestions", false) === true
                 onSubmitted: function(form) { root.submitEvent(form) }
                 onCanceled: root.cancelComposing()
+                onOpenRequested: function(url) { if (root.hostWidget) root.hostWidget.openUrl(url) }
               }
 
               Column {
@@ -1191,25 +1273,26 @@ Panel {
                     nowMs: root.nowMs
                     foreground: root.contentForeground
                     fontFamily: root.contentFontFamily
-                    busy: !!root.hostWidget && root.hostWidget.deletingEventKey === modelData.key
+                    busy: root.deletingKey === modelData.key
+                    deletable: root.canDelete(modelData)
                     onActivated: root.activateEvent(modelData)
+                    onJoinRequested: root.joinEvent(modelData)
                     onDeleteRequested: root.deleteEvent(modelData)
                   }
                 }
 
                 Text {
-                  visible: text !== ""
                   width: parent.width
                   wrapMode: Text.Wrap
                   textFormat: Text.PlainText
-                  text: root.hostWidget && typeof root.hostWidget.cacheNote === "function"
-                    ? root.hostWidget.cacheNote(root.selectedKey) : ""
-                  color: Qt.darker(root.contentForeground, 1.6)
+                  text: root.hostWidget && typeof root.hostWidget.cacheNote === "function" ? root.hostWidget.cacheNote(root.selectedKey) : ""
+                  visible: text !== ""
+                  color: root.contentForeground
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.bodySmall
                 }
-
-                // What an empty day means depends on whether Google answered.
+                // What an empty day means depends on whether the services
+                // answered.
                 Text {
                   visible: root.selectedEvents.length === 0 || (root.hostWidget && root.hostWidget.lastError !== "")
                   width: parent.width
@@ -1222,10 +1305,11 @@ Panel {
                     if (!host) return ""
                     if (host.lastError !== "") return host.lastError
                     if (!host.loaded) return "Chargement de " + host.backendName + "…"
+                    if (host.anySourceReady === false) return "No calendar is set up. Open the settings (S) to add one."
                     return root.selectedIsToday ? "Aucun événement aujourd’hui." : "Aucun événement ce jour-là."
                   }
                   color: root.hostWidget && root.hostWidget.lastError !== ""
-                    ? Color.urgent
+                    ? Commons.Color.urgent
                     : Qt.darker(root.contentForeground, 1.6)
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.bodySmall
@@ -1237,12 +1321,109 @@ Panel {
                   textFormat: Text.PlainText
                   wrapMode: Text.Wrap
                   text: root.hostWidget ? root.hostWidget.writeError : ""
-                  color: Color.urgent
+                  color: Commons.Color.urgent
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.bodySmall
                 }
               }
 
+              // ---- Time tracked on the day. A track just stopped comes up
+              //      with its name field open.
+              Column {
+                visible: !root.composing && root.selectedTracks.length > 0
+                width: parent.width
+                spacing: Style.space(4)
+
+                Text {
+                  textFormat: Text.PlainText
+                  topPadding: Style.space(4)
+                  text: "TEMPS SUIVI · " + Cal.durationLabel(Cal.trackedOnDay(root.selectedTracks, root.selectedKey))
+                  color: Qt.darker(root.contentForeground, 1.5)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  font.letterSpacing: 1
+                }
+
+                Repeater {
+                  model: root.selectedTracks
+
+                  TimeTrackRow {
+                    required property var modelData
+                    width: parent.width
+                    track: modelData
+                    dayKey: root.selectedKey
+                    hour24: root.hour24
+                    renaming: !!root.hostWidget && root.hostWidget.renameTrackId === modelData.id
+                    busy: !!root.hostWidget && root.hostWidget.writing
+                    foreground: root.contentForeground
+                    fontFamily: root.contentFontFamily
+                    onRenameStarted: if (root.hostWidget) root.hostWidget.renameTrackId = modelData.id
+                    onRenameCanceled: root.finishRenaming()
+                    onRenameRequested: function(name) {
+                      if (root.hostWidget) root.hostWidget.renameTimeTrack(modelData.id, name)
+                      root.finishRenaming()
+                    }
+                    onDeleteRequested: if (root.hostWidget) root.hostWidget.deleteTimeTrack(modelData.id)
+                  }
+                }
+              }
+
+              // ---- HEY's time tracking, on today: one tap to start, one to
+              //      stop, and how long it has been running.
+              Item {
+                visible: root.selectedIsToday && !root.composing && !!root.hostWidget && root.hostWidget.capabilities.timeTracking
+                width: parent.width
+                height: visible ? trackButton.implicitHeight : 0
+
+                readonly property var track: root.hostWidget ? root.hostWidget.timeTrack : null
+
+                Text {
+                  id: trackIcon
+                  anchors.left: parent.left
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: "󱎫"
+                  color: parent.track ? Commons.Color.urgent : Qt.darker(root.contentForeground, 1.6)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.icon
+                }
+
+                Text {
+                  anchors.left: trackIcon.right
+                  anchors.leftMargin: Style.space(8)
+                  anchors.right: trackButton.left
+                  anchors.rightMargin: Style.space(8)
+                  anchors.verticalCenter: parent.verticalCenter
+                  textFormat: Text.PlainText
+                  elide: Text.ElideRight
+                  text: {
+                    var track = parent.track
+                    if (!track) return "Aucun suivi en cours"
+                    var since = Cal.formatTime(new Date(track.startMs), root.hour24)
+                    return "Suivi en cours : " + Cal.durationLabel(root.nowMs - track.startMs)
+                      + " · depuis " + since + (track.title !== "" ? " · " + track.title : "")
+                  }
+                  color: parent.track ? root.contentForeground : Qt.darker(root.contentForeground, 1.6)
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                }
+
+                Button {
+                  id: trackButton
+                  anchors.right: parent.right
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: parent.track ? "Arrêter" : "Démarrer"
+                  iconText: parent.track ? "󰓛" : "󰐊"
+                  bordered: true
+                  enabled: !!root.hostWidget && !root.hostWidget.writing
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  fontSize: Style.font.bodySmall
+                  onClicked: {
+                    if (parent.track) root.hostWidget.stopTimeTrack()
+                    else root.hostWidget.startTimeTrack()
+                  }
+                }
+              }
             }
           }
         }

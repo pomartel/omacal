@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Synthetic input-method test; never uses an account or the desktop clipboard.
+set -euo pipefail
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+scratch=$(mktemp -d /tmp/french-input.XXXXXX)
+trap 'rm -rf -- "$scratch"' EXIT
+mkdir -p "$scratch/NativeInput"
+cp "$repo/tests/native-input.cpp" "$scratch/NativeInput/"
+/usr/lib/qt6/moc $(pkg-config --cflags Qt6Qml Qt6Gui) "$scratch/NativeInput/native-input.cpp" -o "$scratch/NativeInput/native-input.moc"
+g++ -shared -fPIC "$scratch/NativeInput/native-input.cpp" -o "$scratch/NativeInput/libnativeinput.so" $(pkg-config --cflags --libs Qt6Qml Qt6Gui)
+printf 'module NativeInput\nplugin nativeinput\n' > "$scratch/NativeInput/qmldir"
+ln -s /usr/share/omarchy/shell/Commons "$scratch/Commons"
+ln -s /usr/share/omarchy/shell/Ui "$scratch/Ui"
+ln -s "$repo" "$scratch/plugin"
+cp "$repo/tests/french-input.qml" "$scratch/shell.qml"
+QML_IMPORT_PATH="$scratch" QT_QPA_PLATFORM=offscreen timeout 20 quickshell -p "$scratch" --no-color > "$scratch/log" 2>&1
+cat "$scratch/log"
+rg -q 'FRENCH INPUT PASSED' "$scratch/log"

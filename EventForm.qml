@@ -1,22 +1,41 @@
 import QtQuick
+import Quickshell.Io
+import qs.Commons as Commons
 import qs.Commons
 import qs.Ui
 import "Calendar.js" as Cal
 
-// A new event, with the fields needed by Google Agenda: a title,
+// A new event, with the fields HEY's own quick form asks for: a title,
 // which calendar, which day, when, where, and a reminder. The calendar
 // panel's + button and the Alt+Shift+Space quick-add card are both this.
 //
-// Days and times are typed, not picked: "fri", "tomorrow", "3 oct" for the
-// day; "9", "930", "9:30pm", "21.30" for times. An end earlier than the
-// start is read as the next morning. The event is created through gws.
+// Days and times are typed, not picked: "fri", "demain", "3 oct" for the
+// day; "9", "930", "9:30pm", "21.30" for times. An event over several days
+// gives its last one under "until", read from the start: "sun" is the first
+// Sunday from it, "+2" two days after it. Left blank, an end earlier than
+// the start is read as the next morning. Times are this machine's local time.
+// As in HEY's own form, a globe shows a zone under each time, the start's
+// and the end's, each a city you can type over ("new york", "tokyo"); the
+// end's follows the start's until it is given its own, for a flight that
+// leaves Berlin at 10:00 and lands in New York at 13:00. The calendars are
+// every service's that takes new events (HEY's, Google's), and the event
+// goes to the service of the one picked.
+//
+// "Where?" suggests places as it is typed in, as HEY's does: Google's when
+// a Google Maps key is set in the settings, else OpenStreetMap's. Up and
+// Down pick one, Enter or a click takes it, Escape puts the list away.
+//
+// The same form edits an event (load()): it opens on the event as it is,
+// and saving sends only what changed. On a repeating event it asks whether
+// the change is for this day or every day of the series.
 //
 // Built to be used without a mouse. Tab and Shift+Tab walk every field,
 // the calendar row and the reminder row included; on those rows the arrow
 // keys pick. Up and Down nudge a time by a quarter hour and the day by one
-// (Shift: a week). From any field, Alt+Left/Right switches calendar,
-// Alt+Up/Down the reminder, and Alt+A toggles all day. Enter creates,
-// Escape cancels. A hint line says what the keys do where the focus is.
+// (Shift: a week); in a zone they pick among the matches. From any field,
+// Alt+Left/Right switches calendar, Alt+Up/Down the reminder, Alt+A
+// toggles all day and Alt+Z the zones. Enter creates, Escape cancels. A
+// hint line says what the keys do where the focus is.
 Item {
   id: root
 
@@ -25,64 +44,140 @@ Item {
   property string dayKey: ""
   property string todayKey: ""
   readonly property string resolvedDay: Cal.parseDay(dateField.text, todayKey !== "" ? todayKey : Cal.keyForDate(new Date()))
+  // The last day, "" while it is the start's own.
+  readonly property string resolvedUntil: untilField.text.replace(/\s+/g, "") === "" || !Cal.isDayKey(resolvedDay)
+    ? "" : Cal.parseDay(untilField.text, resolvedDay)
+  readonly property bool untilUnreadable: untilField.text.replace(/\s+/g, "") !== "" && Cal.isDayKey(resolvedDay)
+    && resolvedUntil === ""
+  readonly property int spanDays: Cal.isDayKey(resolvedUntil) ? Cal.daysBetween(resolvedDay, resolvedUntil) : 0
+  // The start the until day was last measured from, so moving the start
+  // carries the end with it.
+  property string lastStart: ""
   property var calendars: []
-  property var defaultCalendarId: 0
+  // Calendars are named by key, "source:id" (Calendar.js).
+  property string defaultCalendarKey: ""
   property bool busy: false
   // `error` comes from whoever runs the command; `localError` is the form's
   // own complaint about what was typed, and wins while it stands.
   property string error: ""
   property string localError: ""
-  property color foreground: Color.foreground
-  property color accent: Color.accent
+  property color foreground: Commons.Color.foreground
+  property color accent: Commons.Color.accent
   property string fontFamily: Style.font.family
 
   signal submitted(var form)
   signal canceled()
+  // A link the edit form offers: the event's meeting, or its page in its
+  // service.
+  signal openRequested(string url)
 
   // The fields' text, for filling the form from outside (the screenshot
   // harness). Named apart from the functions below: an alias that shares a
   // function's name shadows it.
   property alias titleInput: titleField.text
   property alias dayInput: dateField.text
+  property alias untilInput: untilField.text
   property alias startInput: startField.text
   property alias endInput: endField.text
   property alias locationInput: locationField.text
-  property var calendarId: 0
+  property alias zoneInput: startZone.text
+  property alias endZoneInput: endZone.text
+  // HEY keeps the zones out of sight until its globe is clicked.
+  property bool showZones: false
+  property string calendarKey: ""
   property bool allDay: false
   property string remind: "30m"
 
-  readonly property var reminderValues: ["", "10m", "30m", "1h", "1d"]
-  readonly property var calendarIds: {
-    var ids = []
-    for (var i = 0; i < root.calendars.length; i++) ids.push(root.calendars[i].id)
-    return ids
+  // This machine's IANA zone and every zone it knows, read once by
+  // zonesProcess. The screenshot harness sets them and turns loading off.
+  property bool loadZones: true
+  property string localZone: ""
+  property var zones: []
+  // The event being edited, or null for a new one, and what the form
+  // opened with, which is what an edit is measured against.
+  property var editing: null
+  property var opened: null
+  // Whether one day of a repeating event can be changed on its own, and
+  // which the change is for: "one" day or "all" of the series.
+  property bool oneDayEditable: false
+  property string scope: "one"
+  readonly property bool repeating: !!root.editing && root.editing.recurring
+  readonly property var scopeValues: root.oneDayEditable ? ["one", "all"] : ["all"]
+  property string serviceName: "HEY"
+  // Whether "Where?" asks a places service while it is typed in.
+  property bool placeSuggestions: true
+  // The place last taken from the list (or the edited event's own), which
+  // is not looked up again while the field still reads it.
+  property string pickedPlace: ""
+  property int placeCursor: -1
+  readonly property bool showsPlaces: places.active && (places.results.length > 0 || places.error !== "")
+
+  // "keep" stands for reminders the form has no button for (several, or
+  // another lead), and is offered only while editing an event with them.
+  readonly property bool keepsReminders: !!root.opened && root.opened.remind === "keep"
+  readonly property var reminderValues: root.keepsReminders ? ["keep", "", "10m", "30m", "1h", "1d"] : ["", "10m", "30m", "1h", "1d"]
+  readonly property var calendarKeys: {
+    var keys = []
+    for (var i = 0; i < root.calendars.length; i++) keys.push(root.calendars[i].key)
+    return keys
   }
   readonly property string chosenCalendarName: {
     for (var i = 0; i < root.calendars.length; i++)
-      if (root.calendars[i].id === root.calendarId) return root.calendars[i].name
+      if (root.calendars[i].key === root.calendarKey) return root.calendars[i].label || root.calendars[i].name
     return ""
   }
 
   // What the keys do where the focus is, one line under the form.
   readonly property string keyHint: {
-    if (calendarRow.activeFocus) return "←→ calendrier · Tab suivant · Entrée ajouter · Échap annuler"
-    if (remindRow.activeFocus) return "←→ rappel · Tab suivant · Entrée ajouter · Échap annuler"
-    if (allDayRow.activeFocus) return "Espace journée entière · Tab suivant · Entrée ajouter · Échap annuler"
-    if (dateField.activeFocus) return "↑↓ jour, Maj semaine · Tab suivant · Alt+←→ calendrier · Entrée ajouter"
-    if (startField.activeFocus || endField.activeFocus) return "↑↓ 15 min · Tab suivant · Alt+←→ calendrier · Entrée ajouter"
-    return "Tab champ suivant · Alt+←→ calendrier · Alt+↑↓ rappel · Alt+A journée entière · Entrée ajouter"
+    if (calendarRow.activeFocus) return "←→ calendrier · Tab suivant · Entrée enregistrer · Échap annuler"
+    if (remindRow.activeFocus) return "←→ rappel · Tab suivant · Entrée enregistrer · Échap annuler"
+    if (scopeRow.activeFocus) return "←→ cette occurrence ou toute la série · Entrée enregistrer"
+    if (dateField.activeFocus || untilField.activeFocus) return "↑↓ jour · Maj : semaine · Tab suivant · Entrée enregistrer"
+    if (startZone.activeFocus || endZone.activeFocus) return "Saisir une ville · ↑↓ choisir · Alt+Z masquer les fuseaux"
+    if (locationField.activeFocus && places.results.length > 0) return "↑↓ choisir un lieu · Entrée sélectionner · Échap masquer"
+    return "Tab : champ suivant · Alt+←→ : calendrier · Alt+↑↓ : rappel · Alt+A : journée entière · Alt+Z : fuseaux · Entrée : enregistrer"
   }
 
-  readonly property string dayLabel: Cal.isDayKey(resolvedDay)
-    ? Cal.dateFromKey(resolvedDay).toLocaleDateString(Qt.locale("fr_CA"), "dddd d MMMM yyyy")
-    : ""
+  // What the typed days resolve to, so "fri" is never a guess: the day, or
+  // the first and last of several.
+  readonly property string dayLabel: {
+    if (!Cal.isDayKey(resolvedDay)) return ""
+    var first = Cal.dateFromKey(resolvedDay)
+    if (root.spanDays <= 0) return first.toLocaleDateString(Qt.locale("fr_CA"), "dddd d MMMM yyyy")
+    var last = Cal.dateFromKey(resolvedUntil)
+    var sameYear = first.getFullYear() === last.getFullYear()
+    return first.toLocaleDateString(Qt.locale("fr_CA"), sameYear ? "ddd d MMM" : "ddd d MMM yyyy") + " – "
+      + last.toLocaleDateString(Qt.locale("fr_CA"), "ddd d MMM yyyy") + " · " + (root.spanDays + 1) + " jours"
+  }
+  readonly property string dayProblem: {
+    if (!Cal.isDayKey(resolvedDay)) return "Date invalide"
+    if (root.untilUnreadable) return "Date de fin invalide"
+    if (root.spanDays < 0) return "La fin précède le début"
+    return ""
+  }
+
+  // Moving the start moves the last day with it, as a calendar does.
+  onResolvedDayChanged: {
+    if (!Cal.isDayKey(resolvedDay)) return
+    var was = root.lastStart
+    root.lastStart = resolvedDay
+    if (!Cal.isDayKey(was) || untilField.activeFocus || untilField.text === "") return
+    var last = Cal.parseDay(untilField.text, was)
+    if (Cal.isDayKey(last)) untilField.text = untilText(Cal.addDays(last, Cal.daysBetween(was, resolvedDay)))
+  }
 
   implicitHeight: formColumn.implicitHeight
 
   // Called each time the form opens, so a second event does not inherit
   // the first one's title.
+  readonly property string verb: root.editing ? "save" : "add"
+
   function reset() {
+    root.editing = null
+    root.opened = null
+    untilField.text = ""
     titleField.text = ""
+    root.pickedPlace = ""
     locationField.text = ""
     var today = root.todayKey !== "" ? root.todayKey : Cal.keyForDate(new Date())
     var day = Cal.isDayKey(root.dayKey) ? root.dayKey : today
@@ -90,11 +185,36 @@ Item {
     var start = Cal.suggestedStart(day, new Date())
     startField.text = start
     endField.text = ""
+    startZone.reset()
+    endZone.reset()
+    root.showZones = false
     root.allDay = false
     root.remind = "30m"
     root.localError = ""
-    root.calendarId = pickCalendar(root.defaultCalendarId)
+    root.calendarKey = pickCalendar(root.defaultCalendarKey)
     focusTitle()
+  }
+
+  // Opens the form on an existing event. `values` is Cal.eventFormValues'.
+  function load(event, values, oneDayEditable) {
+    reset()
+    if (!event || !values) return
+    root.editing = event
+    root.opened = values
+    root.oneDayEditable = oneDayEditable === true
+    root.scope = root.scopeValues[0]
+    titleField.text = values.title
+    root.pickedPlace = values.location
+    locationField.text = values.location
+    dateField.text = dayText(values.date)
+    untilField.text = values.spanDays > 0 ? untilText(Cal.addDays(values.date, values.spanDays)) : ""
+    root.allDay = values.allDay
+    startField.text = values.allDay ? Cal.suggestedStart(values.date, new Date()) : values.startTime
+    endField.text = values.allDay ? "" : values.endTime
+    root.remind = values.remind
+    // The event's own calendar, even one the form cannot offer (the row
+    // then shows none chosen), so saving never moves it by accident.
+    root.calendarKey = values.calendarKey
   }
 
   function focusTitle() {
@@ -109,20 +229,33 @@ Item {
     var today = currentToday()
     if (day === today) return "aujourd’hui"
     if (day === Cal.addDays(today, 1)) return "demain"
-    return Cal.dateFromKey(day).toLocaleDateString(Qt.locale("fr_CA"), "d MMM yyyy")
+    return Qt.formatDate(Cal.dateFromKey(day), "d MMM yyyy")
+  }
+
+  // The until field is read from the start, so it is always written out.
+  function untilText(day) {
+    return Qt.formatDate(Cal.dateFromKey(day), "d MMM yyyy")
   }
 
   function pickCalendar(preferred) {
     for (var i = 0; i < root.calendars.length; i++)
-      if (root.calendars[i].id === preferred) return preferred
-    return root.calendars.length > 0 ? root.calendars[0].id : 0
+      if (root.calendars[i].key === preferred) return preferred
+    return root.calendars.length > 0 ? root.calendars[0].key : ""
   }
 
   function submit() {
     if (root.busy) return
     root.localError = ""
     if (!Cal.isDayKey(root.resolvedDay)) {
-      root.localError = "Date inconnue : « " + dateField.text + " ». Essayez vendredi, demain ou 3 oct."
+      root.localError = "“" + dateField.text + " ». Essayez vendredi, demain ou 3 oct."
+      return
+    }
+    if (root.untilUnreadable) {
+      root.localError = "“" + untilField.text + "” is not a day I know. Try sun, +2 or 18 oct."
+      return
+    }
+    if (root.spanDays < 0) {
+      root.localError = "It has to end on or after the day it starts."
       return
     }
     root.submitted({
@@ -131,17 +264,24 @@ Item {
       allDay: root.allDay,
       startTime: startField.text,
       endTime: endField.text,
-      calendarId: root.calendarId,
+      timeZone: root.allDay ? "" : startZone.chosen,
+      endTimeZone: root.allDay ? "" : endZone.chosen,
+      calendarKey: root.calendarKey,
       location: locationField.text,
-      remind: root.remind
+      remind: root.remind,
+      spanDays: root.spanDays,
+      scope: root.scope,
+      localZone: root.localZone
     })
   }
 
   // Tab order, skipping the time fields while the event is all day.
   function focusOrder() {
-    var order = [titleField, dateField, calendarRow, allDayRow]
+    var order = [titleField, dateField, untilField, calendarRow, allDayRow]
     if (!root.allDay) order.push(startField, endField)
+    if (!root.allDay && root.showZones) order.push(startZone, endZone)
     order.push(locationField, remindRow)
+    if (root.repeating) order.push(scopeRow)
     return order
   }
 
@@ -153,8 +293,31 @@ Item {
     next.forceActiveFocus()
   }
 
+  // Shows the zones and puts the keyboard in the start's; hiding them goes
+  // back to local time, so what is hidden is never what is sent.
+  function toggleZones() {
+    if (root.showZones) {
+      var inZone = startZone.activeFocus || endZone.activeFocus
+      startZone.reset()
+      endZone.reset()
+      root.showZones = false
+      if (inZone) startField.forceActiveFocus()
+    } else {
+      root.showZones = true
+      Qt.callLater(function() { startZone.forceActiveFocus() })
+    }
+  }
+
+  function takePlace(index) {
+    var place = places.results[index]
+    if (!place) return
+    root.pickedPlace = place.value
+    locationField.text = place.value
+    places.picked()
+  }
+
   function stepCalendar(delta) {
-    root.calendarId = Cal.cycle(root.calendarIds, root.calendarId, delta)
+    root.calendarKey = Cal.cycle(root.calendarKeys, root.calendarKey, delta)
   }
 
   function stepReminder(delta) {
@@ -166,6 +329,14 @@ Item {
     dateField.text = dayText(Cal.addDays(base, delta))
   }
 
+  // Stepping back onto the start blanks the field: a day of its own.
+  function stepUntil(delta) {
+    if (!Cal.isDayKey(root.resolvedDay)) return
+    var base = Cal.isDayKey(root.resolvedUntil) ? root.resolvedUntil : root.resolvedDay
+    var next = Cal.addDays(base, delta)
+    untilField.text = next > root.resolvedDay ? untilText(next) : ""
+  }
+
   // Every field and row shares this. Returns having accepted the key, or
   // leaves it for the field (typing, and Left/Right inside the text).
   function handleKey(event, item) {
@@ -175,7 +346,19 @@ Item {
     var left = key === Qt.Key_Left || (!item.selectAll && event.text === "h")
     var right = key === Qt.Key_Right || (!item.selectAll && event.text === "l")
 
-    if (key === Qt.Key_Escape) root.canceled()
+    var listed = item === locationField && places.results.length > 0
+    if (listed && !alt && (key === Qt.Key_Up || key === Qt.Key_Down)) {
+      var count = places.results.length
+      root.placeCursor = key === Qt.Key_Up
+        ? (root.placeCursor <= 0 ? count - 1 : root.placeCursor - 1)
+        : (root.placeCursor + 1) % count
+    }
+    else if (listed && root.placeCursor >= 0 && (key === Qt.Key_Return || key === Qt.Key_Enter)) takePlace(root.placeCursor)
+    else if (item === locationField && root.showsPlaces && key === Qt.Key_Escape) {
+      root.pickedPlace = locationField.text
+      places.clear()
+    }
+    else if (key === Qt.Key_Escape) root.canceled()
     else if (key === Qt.Key_Return || key === Qt.Key_Enter) root.submit()
     else if (key === Qt.Key_Backtab || (key === Qt.Key_Tab && shift)) focusStep(item, -1)
     else if (key === Qt.Key_Tab) focusStep(item, 1)
@@ -184,13 +367,17 @@ Item {
     else if (alt && key === Qt.Key_Up) stepReminder(-1)
     else if (alt && key === Qt.Key_Down) stepReminder(1)
     else if (alt && key === Qt.Key_A) root.allDay = !root.allDay
+    else if (alt && key === Qt.Key_Z && !root.allDay) toggleZones()
     else if (item === calendarRow && (left || key === Qt.Key_Up)) stepCalendar(-1)
     else if (item === calendarRow && (right || key === Qt.Key_Down)) stepCalendar(1)
+    else if (item === scopeRow && (left || right)) root.scope = Cal.cycle(root.scopeValues, root.scope, left ? -1 : 1)
     else if (item === remindRow && left) stepReminder(-1)
     else if (item === remindRow && right) stepReminder(1)
     else if (item === allDayRow && (key === Qt.Key_Space || left || right)) root.allDay = !root.allDay
     else if (item === dateField && key === Qt.Key_Up) stepDay(shift ? -7 : -1)
     else if (item === dateField && key === Qt.Key_Down) stepDay(shift ? 7 : 1)
+    else if (item === untilField && key === Qt.Key_Up) stepUntil(shift ? -7 : -1)
+    else if (item === untilField && key === Qt.Key_Down) stepUntil(shift ? 7 : 1)
     else if (item === startField && (key === Qt.Key_Up || key === Qt.Key_Down))
       startField.text = Cal.nudgeClock(startField.text, key === Qt.Key_Up ? -15 : 15, Cal.suggestedStart(root.resolvedDay, new Date()))
     else if (item === endField && (key === Qt.Key_Up || key === Qt.Key_Down)) {
@@ -202,33 +389,91 @@ Item {
     event.accepted = true
   }
 
-  onCalendarsChanged: root.calendarId = pickCalendar(root.calendarId || root.defaultCalendarId)
+  onCalendarsChanged: if (root.calendarKey === "" && !root.editing) root.calendarKey = pickCalendar(root.defaultCalendarKey)
+  Component.onCompleted: root.lastStart = root.resolvedDay
+
+
+  Process {
+    id: zonesProcess
+    running: root.loadZones
+    command: Cal.zonesCommand
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var parsed = Cal.parseZones(text)
+        root.localZone = parsed.local
+        root.zones = parsed.zones
+      }
+    }
+  }
 
   Column {
     id: formColumn
     width: parent.width
     spacing: Style.space(10)
 
-    Text {
-      textFormat: Text.PlainText
-      text: "NOUVEL ÉVÉNEMENT"
-      color: Qt.darker(root.foreground, 1.5)
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-      font.letterSpacing: 1
+    Item {
+      width: parent.width
+      height: Math.max(heading.implicitHeight, links.implicitHeight)
+
+      Text {
+        id: heading
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: root.editing ? (root.repeating ? "MODIFIER L’ÉVÉNEMENT RÉCURRENT" : "MODIFIER L’ÉVÉNEMENT") : "NOUVEL ÉVÉNEMENT"
+        color: Qt.darker(root.foreground, 1.5)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        font.letterSpacing: 1
+      }
+
+      // The meeting to join, and the event in its service for what the form
+      // does not cover (notes, guests, repeats).
+      Row {
+        id: links
+        visible: !!root.editing
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(6)
+
+        Button {
+          visible: !!root.editing && root.editing.joinUrl !== ""
+          text: root.editing && root.editing.joinTitle !== "" ? root.editing.joinTitle : "Rejoindre"
+          iconText: "󰍫"
+          foreground: root.foreground
+          accent: root.accent
+          fontFamily: root.fontFamily
+          onClicked: root.openRequested(root.editing.joinUrl)
+        }
+
+        Button {
+          visible: !!root.editing && root.editing.url !== ""
+          text: "Ouvrir dans " + root.serviceName
+          iconText: "󰏌"
+          foreground: root.foreground
+          accent: root.accent
+          fontFamily: root.fontFamily
+          onClicked: root.openRequested(root.editing.url)
+        }
+      }
     }
 
-    TextField {
+    KeyField {
       id: titleField
       width: parent.width
       placeholderText: "Quel est l’événement ?"
       foreground: root.foreground
       font.family: root.fontFamily
-      Keys.onPressed: function(event) { root.handleKey(event, titleField) }
+      keyHandler: root.handleKey
     }
 
-    Row {
+    // The first day and, for an event over several, the last, with what
+    // they resolve to under them.
+    Column {
       width: parent.width
+      spacing: Style.space(4)
+
+    Row {
       spacing: Style.space(10)
 
       Text {
@@ -240,28 +485,49 @@ Item {
         font.letterSpacing: 1
       }
 
-      TextField {
+      KeyField {
         id: dateField
         width: Style.space(130)
         anchors.verticalCenter: parent.verticalCenter
         placeholderText: "aujourd’hui"
         foreground: root.foreground
         font.family: root.fontFamily
-        Keys.onPressed: function(event) { root.handleKey(event, dateField) }
+        keyHandler: root.handleKey
       }
 
-      // What the typed day resolves to, so "fri" is never a guess.
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        textFormat: Text.PlainText
-        text: root.dayLabel !== "" ? root.dayLabel : "Date invalide"
-        color: root.dayLabel !== "" ? Qt.darker(root.foreground, 1.4) : Color.urgent
+        leftPadding: Style.space(6)
+        text: "JUSQU’AU"
+        color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
+        font.letterSpacing: 1
+      }
+
+      KeyField {
+        id: untilField
+        width: Style.space(130)
+        anchors.verticalCenter: parent.verticalCenter
+        placeholderText: "même jour"
+        foreground: root.foreground
+        font.family: root.fontFamily
+        keyHandler: root.handleKey
       }
     }
 
-    // Calendars: a pastel pill each, the chosen one
+      Text {
+        width: parent.width
+        textFormat: Text.PlainText
+        text: root.dayProblem !== "" ? root.dayProblem : root.dayLabel
+        color: root.dayProblem !== "" ? Commons.Color.urgent : Qt.darker(root.foreground, 1.4)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        elide: Text.ElideRight
+      }
+    }
+
+    // Calendars as HEY paints them: a pastel pill each, the chosen one
     // outlined. A list this short reads faster as colors than as a menu.
     // Tab lands on the row as a whole, and the arrow keys pick.
     Item {
@@ -281,49 +547,60 @@ Item {
       spacing: Style.space(6)
 
       Repeater {
-        model: root.calendars
+        model: Cal.groupedCalendars(root.calendars)
 
         Rectangle {
+          id: calendarPill
           required property var modelData
-          readonly property bool chosen: modelData.id === root.calendarId
-          width: calendarName.implicitWidth + Style.space(20)
-          height: calendarName.implicitHeight + Style.space(8)
-          radius: height / 2
-          color: Cal.calendarColor(modelData.color, root.accent)
-          opacity: chosen || calendarMouse.containsMouse ? 1 : 0.55
+          readonly property bool heading: modelData.heading !== undefined
+          readonly property bool chosen: !heading && modelData.key === root.calendarKey
+          // A service's heading takes a line of its own, so each calendar
+          // reads as HEY's, Google's, or a feed's.
+          width: heading ? calendarFlow.width : calendarName.implicitWidth + Style.space(20)
+          height: heading ? calendarName.implicitHeight + Style.space(2) : calendarName.implicitHeight + Style.space(8)
+          radius: heading ? 0 : height / 2
+          color: heading ? "transparent" : Cal.calendarColor(modelData.color, root.accent)
+          opacity: heading || chosen || calendarMouse.containsMouse ? 1 : 0.55
           border.width: chosen ? 2 : 0
           border.color: root.foreground
 
           Text {
             id: calendarName
-            anchors.centerIn: parent
+            anchors.centerIn: calendarPill.heading ? undefined : parent
+            anchors.bottom: calendarPill.heading ? parent.bottom : undefined
             textFormat: Text.PlainText
-            text: modelData.name
-            color: Cal.calendarInk
+            text: calendarPill.heading ? String(calendarPill.modelData.heading).toUpperCase() : calendarPill.modelData.name
+            color: calendarPill.heading ? Qt.darker(root.foreground, 1.4) : Cal.calendarInk
             font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-            font.bold: parent.chosen
+            font.pixelSize: calendarPill.heading ? Style.font.caption : Style.font.bodySmall
+            font.letterSpacing: calendarPill.heading ? 1 : 0
+            font.bold: calendarPill.chosen
           }
 
           MouseArea {
             id: calendarMouse
             anchors.fill: parent
+            enabled: !calendarPill.heading
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: root.calendarId = modelData.id
+            onClicked: root.calendarKey = calendarPill.modelData.key
           }
         }
       }
     }
     }
 
+    // All day, the two times, and HEY's globe. Each time's zone sits under
+    // it, as in HEY, hidden until the globe is clicked (or Alt+Z).
     Row {
+      id: timeRow
       width: parent.width
       spacing: Style.space(10)
+      readonly property real lineHeight: startField.height
 
       Item {
         id: allDayRow
-        anchors.verticalCenter: parent.verticalCenter
+        y: (timeRow.lineHeight - height) / 2
         width: allDayButton.implicitWidth
         height: allDayButton.implicitHeight
         Keys.onPressed: function(event) { root.handleKey(event, allDayRow) }
@@ -345,7 +622,7 @@ Item {
 
       Text {
         visible: !root.allDay
-        anchors.verticalCenter: parent.verticalCenter
+        y: (timeRow.lineHeight - height) / 2
         leftPadding: Style.space(6)
         text: "DE"
         color: Qt.darker(root.foreground, 1.5)
@@ -354,20 +631,34 @@ Item {
         font.letterSpacing: 1
       }
 
-      TextField {
-        id: startField
+      Column {
         visible: !root.allDay
-        width: Style.space(76)
-        anchors.verticalCenter: parent.verticalCenter
-        placeholderText: "09:00"
-        foreground: root.foreground
-        font.family: root.fontFamily
-        Keys.onPressed: function(event) { root.handleKey(event, startField) }
+        spacing: Style.space(6)
+
+        KeyField {
+          id: startField
+          width: Style.space(96)
+          placeholderText: "09:00"
+          foreground: root.foreground
+          font.family: root.fontFamily
+          keyHandler: root.handleKey
+        }
+
+        ZoneField {
+          id: startZone
+          visible: root.showZones
+          width: Style.space(96)
+          zones: root.zones
+          fallback: root.localZone
+          foreground: root.foreground
+          font.family: root.fontFamily
+          keyHandler: root.handleKey
+        }
       }
 
       Text {
         visible: !root.allDay
-        anchors.verticalCenter: parent.verticalCenter
+        y: (timeRow.lineHeight - height) / 2
         text: "À"
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
@@ -375,25 +666,191 @@ Item {
         font.letterSpacing: 1
       }
 
-      TextField {
-        id: endField
+      Column {
         visible: !root.allDay
-        width: Style.space(76)
-        anchors.verticalCenter: parent.verticalCenter
-        placeholderText: "+1 h"
-        foreground: root.foreground
+        spacing: Style.space(6)
+
+        KeyField {
+          id: endField
+          width: Style.space(96)
+          placeholderText: "+1 h"
+          foreground: root.foreground
+          font.family: root.fontFamily
+          keyHandler: root.handleKey
+        }
+
+        // Follows the start's zone until it is given its own.
+        ZoneField {
+          id: endZone
+          visible: root.showZones
+          width: Style.space(96)
+          zones: root.zones
+          fallback: startZone.chosen
+          foreground: root.foreground
+          font.family: root.fontFamily
+          keyHandler: root.handleKey
+        }
+      }
+
+      // HEY's globe: shows the zones, and hides them again, back on local time.
+      Text {
+        id: globe
+        visible: !root.allDay
+        y: (timeRow.lineHeight - height) / 2
+        text: "󰇧"
+        color: root.showZones || globeMouse.containsMouse ? root.accent : Qt.darker(root.foreground, 1.4)
         font.family: root.fontFamily
-        Keys.onPressed: function(event) { root.handleKey(event, endField) }
+        font.pixelSize: Style.font.body
+
+        MouseArea {
+          id: globeMouse
+          anchors.fill: parent
+          anchors.margins: -Style.space(6)
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.toggleZones()
+        }
       }
     }
 
-    TextField {
+    // The zones the typing in a zone field could mean, the highlighted one
+    // chosen, with the region spelled out so two cities are never confused.
+    Flow {
+      readonly property var field: startZone.activeFocus ? startZone : (endZone.activeFocus ? endZone : null)
+      id: zoneMatches
+      visible: !root.allDay && field !== null && field.matches.length > 0
+      width: parent.width
+      spacing: Style.space(6)
+
+      Repeater {
+        model: zoneMatches.field ? zoneMatches.field.matches : []
+
+        Rectangle {
+          required property var modelData
+          required property int index
+          readonly property bool picked: !!zoneMatches.field
+            && index === Math.min(zoneMatches.field.cursor, zoneMatches.field.matches.length - 1)
+          width: zoneName.implicitWidth + Style.space(16)
+          height: zoneName.implicitHeight + Style.space(6)
+          radius: height / 2
+          color: picked ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.25) : "transparent"
+          border.width: 1
+          border.color: picked ? root.accent : Qt.darker(root.foreground, 2.2)
+
+          Text {
+            id: zoneName
+            anchors.centerIn: parent
+            textFormat: Text.PlainText
+            text: Cal.zoneLabel(modelData)
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: if (zoneMatches.field) zoneMatches.field.cursor = index
+          }
+        }
+      }
+    }
+
+    KeyField {
       id: locationField
       width: parent.width
       placeholderText: "Lieu (facultatif)"
       foreground: root.foreground
       font.family: root.fontFamily
-      Keys.onPressed: function(event) { root.handleKey(event, locationField) }
+      keyHandler: root.handleKey
+    }
+
+    PlaceSearch {
+      id: places
+      // Not drawn: it only looks things up, and a drawn one would take a
+      // row of the column's spacing.
+      visible: false
+      query: locationField.text
+      zone: root.localZone
+      active: root.placeSuggestions && locationField.activeFocus && locationField.text !== root.pickedPlace
+      onResultsChanged: root.placeCursor = -1
+    }
+
+    // The places the typing could mean: the name, the rest of the address
+    // under it, and whose map they come from, as both services ask.
+    Column {
+      id: placeList
+      visible: root.showsPlaces
+      width: parent.width
+      spacing: Style.space(2)
+
+      Repeater {
+        model: places.active ? places.results : []
+
+        Rectangle {
+          required property var modelData
+          required property int index
+          readonly property bool lit: index === root.placeCursor || placeMouse.containsMouse
+          width: placeList.width
+          height: placeText.implicitHeight + Style.space(10)
+          radius: Style.cornerRadius
+          color: lit ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.2) : "transparent"
+          border.width: index === root.placeCursor ? 1 : 0
+          border.color: root.accent
+
+          Column {
+            id: placeText
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.leftMargin: Style.space(10)
+            anchors.rightMargin: Style.space(10)
+
+            Text {
+              width: parent.width
+              textFormat: Text.PlainText
+              text: modelData.title
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              elide: Text.ElideRight
+            }
+
+            Text {
+              visible: modelData.detail !== ""
+              width: parent.width
+              textFormat: Text.PlainText
+              text: modelData.detail
+              color: Qt.darker(root.foreground, 1.6)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+            }
+          }
+
+          MouseArea {
+            id: placeMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            // Pressing would take the keyboard from the field and close the list.
+            preventStealing: true
+            onPressed: function(mouse) { mouse.accepted = true; root.takePlace(index) }
+          }
+        }
+      }
+
+      Text {
+        width: parent.width
+        textFormat: Text.PlainText
+        horizontalAlignment: places.error !== "" ? Text.AlignLeft : Text.AlignRight
+        text: places.error !== "" ? places.error
+          : (places.provider === "google" ? "Google Maps" : "© OpenStreetMap contributors")
+        color: places.error !== "" ? Commons.Color.urgent : Qt.darker(root.foreground, 1.9)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.Wrap
+      }
     }
 
     Row {
@@ -417,13 +874,13 @@ Item {
         background: "transparent"
         anchors.verticalCenter: parent.verticalCenter
         focusable: false
-        options: [
+        options: (root.keepsReminders ? [{ value: "keep", label: "Sans changement" }] : []).concat([
           { value: "", label: "Aucun" },
           { value: "10m", label: "10 min" },
           { value: "30m", label: "30 min" },
           { value: "1h", label: "1 h" },
           { value: "1d", label: "1 j" }
-        ]
+        ])
         value: root.remind
         // Lights the chosen reminder while the row has the keyboard.
         cursorIndex: remindRow.activeFocus ? root.reminderValues.indexOf(root.remind) : -1
@@ -432,6 +889,39 @@ Item {
         fontFamily: root.fontFamily
         fontSize: Style.font.bodySmall
         onChanged: function(value) { root.remind = value }
+      }
+    }
+
+    // A repeating event: is the change for this day, or the whole series?
+    Row {
+      id: scopeRow
+      visible: root.repeating
+      spacing: Style.space(10)
+      Keys.onPressed: function(event) { root.handleKey(event, scopeRow) }
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: "MODIFIER"
+        color: Qt.darker(root.foreground, 1.5)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        font.letterSpacing: 1
+      }
+
+      ButtonGroup {
+        background: "transparent"
+        anchors.verticalCenter: parent.verticalCenter
+        focusable: false
+        options: root.oneDayEditable
+          ? [{ value: "one", label: "This day" }, { value: "all", label: "Every day" }]
+          : [{ value: "all", label: "Every day" }]
+        value: root.scope
+        cursorIndex: scopeRow.activeFocus ? root.scopeValues.indexOf(root.scope) : -1
+        foreground: root.foreground
+        accent: root.accent
+        fontFamily: root.fontFamily
+        fontSize: Style.font.bodySmall
+        onChanged: function(value) { root.scope = value }
       }
     }
 
@@ -445,8 +935,8 @@ Item {
         anchors.right: cancelButton.left
         anchors.rightMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        text: root.busy ? "Ajout…" : (root.localError !== "" ? root.localError : root.error)
-        color: root.busy ? Qt.darker(root.foreground, 1.4) : Color.urgent
+        text: root.busy ? (root.editing ? "Enregistrement…" : "Ajout…") : (root.localError !== "" ? root.localError : root.error)
+        color: root.busy ? Qt.darker(root.foreground, 1.4) : Commons.Color.urgent
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
         wrapMode: Text.Wrap
@@ -470,8 +960,8 @@ Item {
         id: createButton
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        text: "Ajouter"
-        iconText: "󰐕"
+        text: root.editing ? "Enregistrer" : "Ajouter"
+        iconText: root.editing ? "󰆓" : "󰐕"
         bordered: true
         enabled: !root.busy
         foreground: root.foreground
