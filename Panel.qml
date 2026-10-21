@@ -1269,16 +1269,6 @@ Panel {
                   }
                 }
 
-                Text {
-                  width: parent.width
-                  wrapMode: Text.Wrap
-                  textFormat: Text.PlainText
-                  text: root.hostWidget && typeof root.hostWidget.cacheNote === "function" ? root.hostWidget.cacheNote(root.selectedKey) : ""
-                  visible: text !== ""
-                  color: root.contentForeground
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.bodySmall
-                }
                 // What an empty day means depends on whether the services
                 // answered.
                 Text {
