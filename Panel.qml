@@ -1176,7 +1176,7 @@ Panel {
                   Button {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !root.selectedIsToday || !root.viewingCurrentMonth
-                    text: Fr.t("text.aujourdhui")
+                    text: Fr.t("action.today_short")
                     tooltipText: Fr.t("text.revenir_a_aujourdhui_t")
                     bordered: true
                     foreground: root.contentForeground

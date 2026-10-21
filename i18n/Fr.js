@@ -2,6 +2,7 @@
 var catalog = {
   "action.add": "Ajouter",
   "action.save": "Enregistrer",
+  "action.today_short": "Auj",
   "backend.%1 could not start.": "%1 n’a pas pu démarrer.",
   "backend.%1 did not answer. Is it signed in?": "%1 n’a pas répondu. Le compte est-il connecté ?",
   "backend.%1 exited with status %2.": "%1 s’est arrêté avec le code %2.",
