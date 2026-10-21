@@ -1,6 +1,6 @@
 // Plain node, no dependencies: `tests/run` runs this in several timezones.
 var assert = require("assert")
-var Hey = require("../Calendar.js")
+var Hey = require("./load-calendar.cjs")
 var Backend = require("../backends/Hey.js")
 var Api = require("../backends/HeyApi.js")
 var Places = require("../Places.js")

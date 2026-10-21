@@ -4,6 +4,7 @@ Google's transport, event projection and writes stay in the upstream helper.
 This module never reads credentials or makes network requests.
 """
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -13,6 +14,10 @@ def cache_class():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.CalendarCache
+
+
+with Path(__file__).resolve().parent.parent.joinpath("i18n", "fr.json").open(encoding="utf-8") as catalog_file:
+    MESSAGES = json.load(catalog_file)
 
 
 class Profile:
@@ -34,7 +39,7 @@ class Profile:
         if self.account:
             primary = next((c["id"] for c in calendars(google) if c.get("primary")), "")
             if primary.lower() != self.account.lower():
-                raise failure("Le compte Google connecté ne correspond pas au compte configuré.")
+                raise failure(MESSAGES["google.account_mismatch"])
 
     def begin_weeks(self):
         self.generation = self.snapshot()["generation"]

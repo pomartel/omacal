@@ -1,3 +1,4 @@
+import "i18n/Fr.js" as Fr
 import QtQuick
 import qs.Commons as Commons
 import qs.Commons
@@ -134,7 +135,7 @@ Item {
       Text {
         visible: root.current
         textFormat: Text.PlainText
-        text: "EN COURS"
+        text: Fr.t("text.en_cours")
         color: root.ink
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -183,7 +184,7 @@ Item {
         var lines = [Cal.eventRangeLabel(root.event, root.hour24) + " · " + root.event.title]
         if (root.event.calendar !== "") lines.push(root.event.calendar)
         if (root.event.location !== "") lines.push(root.event.location)
-        if (root.event.recurring) lines.push("Récurrent")
+        if (root.event.recurring) lines.push(Fr.t("text.recurrent"))
         lines.push("Click to edit")
         return lines.join("\n")
       }
@@ -241,7 +242,7 @@ Item {
 
       PanelToolTip {
         visible: deleteMouse.containsMouse
-        text: "Supprimer l’événement"
+        text: Fr.t("text.supprimer_levenement")
         fontFamily: root.fontFamily
       }
     }
@@ -260,7 +261,7 @@ Item {
       textFormat: Text.PlainText
       width: parent.width - cancelDelete.width - confirmDelete.width - parent.spacing * 2
       anchors.verticalCenter: parent.verticalCenter
-      text: root.busy ? "Suppression…" : "Supprimer « " + (root.event ? root.event.title : "") + " » ?"
+      text: root.busy ? Fr.t("text.suppression") : Fr.t("text.supprimer_d5d70e") + (root.event ? root.event.title : "") + " » ?"
       color: root.ink
       font.family: root.fontFamily
       font.pixelSize: Style.font.body
@@ -270,7 +271,7 @@ Item {
     Button {
       id: cancelDelete
       anchors.verticalCenter: parent.verticalCenter
-      text: "Conserver"
+      text: Fr.t("text.conserver")
       enabled: !root.busy
       foreground: root.ink
       fontFamily: root.fontFamily
@@ -280,7 +281,7 @@ Item {
     Button {
       id: confirmDelete
       anchors.verticalCenter: parent.verticalCenter
-      text: "Supprimer"
+      text: Fr.t("text.supprimer")
       enabled: !root.busy
       bordered: true
       foreground: root.ink

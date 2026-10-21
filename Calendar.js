@@ -1,3 +1,4 @@
+.import "i18n/Fr.js" as Fr
 // Calendar for Omarchy's calendar model: every piece of date, event and bar math, and
 // nothing about any one calendar service.
 //
@@ -918,19 +919,19 @@ function barWhen(event, nowMs, hour24) {
     if (first <= todayKey) return "aujourd’hui"
     return dayWord(first, todayKey)
   }
-  if (isNow(event, nowMs)) return event.endMs !== null ? "jusqu’à " + formatTime(new Date(event.endMs), hour24) : "maintenant"
+  if (isNow(event, nowMs)) return event.endMs !== null ? Fr.t("text.jusqua") + formatTime(new Date(event.endMs), hour24) : Fr.t("text.maintenant_5382d6")
   var minutes = Math.max(0, Math.round((event.startMs - nowMs) / 60000))
-  if (minutes === 0) return "maintenant"
+  if (minutes === 0) return Fr.t("text.maintenant_5382d6")
   if (minutes < 60) return "in " + minutes + "m"
   var startKey = keyForDate(new Date(event.startMs))
   var time = formatTime(new Date(event.startMs), hour24)
-  if (startKey === todayKey) return "à " + time
+  if (startKey === todayKey) return Fr.t("text.a_4c6ead") + time
   var days = daysBetween(todayKey, startKey)
   return days < 7 ? dayWord(startKey, todayKey) + " " + time : dayWord(startKey, todayKey)
 }
 
-var SHORT_WEEKDAYS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."]
-var SHORT_MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+var SHORT_WEEKDAYS = [Fr.t("text.dim"), Fr.t("text.lun"), Fr.t("text.mar"), Fr.t("text.mer"), Fr.t("text.jeu"), Fr.t("text.ven"), Fr.t("text.sam")]
+var SHORT_MONTHS = [Fr.t("text.janv"), Fr.t("text.fevr"), Fr.t("text.mars"), Fr.t("text.avr"), Fr.t("text.mai"), Fr.t("text.juin"), Fr.t("text.juil"), Fr.t("text.aout"), Fr.t("text.sept"), Fr.t("text.oct"), Fr.t("text.nov"), Fr.t("text.dec")]
 
 function dayWord(key, todayKey) {
   var days = daysBetween(todayKey, key)
@@ -1082,18 +1083,18 @@ function reminderLead(event, nowMs) {
   if (!event) return ""
   if (event.allDay) {
     var days = daysBetween(keyForDate(new Date(nowMs)), String(event.startsAt).substr(0, 10))
-    if (days <= 0) return "Aujourd’hui"
-    if (days === 1) return "Demain"
-    return "Dans " + days + " jours"
+    if (days <= 0) return Fr.t("text.aujourdhui")
+    if (days === 1) return Fr.t("text.demain")
+    return Fr.t("time.in_days", days)
   }
   var minutes = Math.round((event.startMs - nowMs) / 60000)
-  if (minutes <= 0) return "Maintenant"
-  if (minutes < 60) return "Dans " + minutes + " min"
+  if (minutes <= 0) return Fr.t("text.maintenant")
+  if (minutes < 60) return Fr.t("time.in_minutes", minutes)
   var hours = Math.floor(minutes / 60)
   var rest = minutes % 60
-  if (hours < 24) return "Dans " + hours + " h" + (rest > 0 ? " " + rest + " min" : "")
+  if (hours < 24) return Fr.t("text.dans") + hours + " h" + (rest > 0 ? " " + rest + " min" : "")
   var d = Math.round(hours / 24)
-  return d === 1 ? "Demain" : "Dans " + d + " jours"
+  return d === 1 ? Fr.t("text.demain") : Fr.t("time.in_days", d)
 }
 
 function notificationBody(event, nowMs, hour24) {
@@ -1468,9 +1469,9 @@ function zoneCity(name) {
 function validateEvent(form) {
   var f = form || {}
   var title = String(f.title || "").replace(/^\s+|\s+$/g, "")
-  if (title === "") return { error: "Donnez un titre à l’événement." }
-  if (title.length > 256) return { error: "Le titre est trop long." }
-  if (!isDayKey(f.date)) return { error: "Choisissez une date." }
+  if (title === "") return { error: Fr.t("text.donnez_un_titre_a_levenement") }
+  if (title.length > 256) return { error: Fr.t("text.le_titre_est_trop_long") }
+  if (!isDayKey(f.date)) return { error: Fr.t("text.choisissez_une_date") }
 
   var source = ""
   var calendarId = Number(f.calendarId) > 0 ? Math.round(Number(f.calendarId)) : 0
@@ -1491,7 +1492,7 @@ function validateEvent(form) {
   if (request.allDay) {
     if (spanDays > 0) request.endDate = addDays(f.date, spanDays)
     else if (f.endDate && f.endDate !== f.date) {
-      if (!isDayKey(f.endDate) || f.endDate < f.date) return { error: "La fin doit être après le début." }
+      if (!isDayKey(f.endDate) || f.endDate < f.date) return { error: Fr.t("text.la_fin_doit_etre_apres_le_debut") }
       request.endDate = f.endDate
     }
   } else {
@@ -1500,13 +1501,13 @@ function validateEvent(form) {
     if (!isZoneName(zone)) return { error: "“" + zone + "” is not a time zone I know." }
     request.timeZone = zone
     var start = parseClock(f.startTime)
-    if (start === "") return { error: "L’heure de début est invalide." }
+    if (start === "") return { error: Fr.t("text.lheure_de_debut_est_invalide") }
     request.startTime = start
     var endText = String(f.endTime || "").replace(/\s+/g, "")
     if (endText === "" && spanDays > 0) return { error: "Give it an end time on its last day." }
     if (endText !== "") {
       var end = parseClock(endText)
-      if (end === "") return { error: "L’heure de fin est invalide." }
+      if (end === "") return { error: Fr.t("text.lheure_de_fin_est_invalide") }
       request.endTime = end
       var endZone = String(f.endTimeZone || "")
       if (endZone !== "" && endZone !== zone) {
@@ -1517,7 +1518,7 @@ function validateEvent(form) {
       } else if (spanDays > 0) {
         request.endDate = addDays(f.date, spanDays)
       } else {
-        if (clockMinutes(end) === clockMinutes(start)) return { error: "La fin doit être après le début." }
+        if (clockMinutes(end) === clockMinutes(start)) return { error: Fr.t("text.la_fin_doit_etre_apres_le_debut") }
         // An end before the start is read as the next morning, the way you
         // mean "22:00 to 01:00".
         if (clockMinutes(end) < clockMinutes(start)) request.endDate = addDays(f.date, 1)
@@ -1663,9 +1664,9 @@ function eventTimeOnDay(event, dayKey, hour24) {
   if (!event) return ""
   if (event.allDay) return ""
   switch (spanPosition(event, dayKey)) {
-  case "first": return "à partir de " + formatTime(new Date(event.startMs), hour24)
-  case "last": return "jusqu’à " + formatTime(new Date(event.endMs), hour24)
-  case "middle": return "toute la journée"
+  case "first": return Fr.t("text.a_partir_de") + formatTime(new Date(event.startMs), hour24)
+  case "last": return Fr.t("text.jusqua") + formatTime(new Date(event.endMs), hour24)
+  case "middle": return Fr.t("text.toute_la_journee_db9066")
   default: return eventRangeLabel(event, hour24)
   }
 }
@@ -1681,11 +1682,11 @@ function durationLabel(ms) {
 // "Aujourd’hui", "Demain", "Hier", or how far away it is.
 function relativeDayLabel(dayKey, todayKey) {
   var delta = daysBetween(todayKey, dayKey)
-  if (delta === 0) return "Aujourd’hui"
-  if (delta === 1) return "Demain"
-  if (delta === -1) return "Hier"
-  if (delta > 1) return "Dans " + delta + " jours"
-  return (-delta) + " jours plus tôt"
+  if (delta === 0) return Fr.t("text.aujourdhui")
+  if (delta === 1) return Fr.t("text.demain")
+  if (delta === -1) return Fr.t("text.hier")
+  if (delta > 1) return Fr.t("time.in_days", delta)
+  return Fr.t("time.days_ago", -delta)
 }
 
 // External calendars come through as the address they were subscribed from.

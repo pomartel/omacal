@@ -15,3 +15,4 @@ for tz in UTC America/Los_Angeles Europe/Berlin Asia/Tokyo Pacific/Kiritimati; d
 done
 
 /usr/bin/python3 -m unittest discover -s . -p test_cache.py
+node --test translations.test.cjs

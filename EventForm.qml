@@ -1,3 +1,4 @@
+import "i18n/Fr.js" as Fr
 import QtQuick
 import Quickshell.Io
 import qs.Commons as Commons
@@ -129,13 +130,13 @@ Item {
 
   // What the keys do where the focus is, one line under the form.
   readonly property string keyHint: {
-    if (calendarRow.activeFocus) return "←→ calendrier · Tab suivant · Entrée enregistrer · Échap annuler"
-    if (remindRow.activeFocus) return "←→ rappel · Tab suivant · Entrée enregistrer · Échap annuler"
-    if (scopeRow.activeFocus) return "←→ cette occurrence ou toute la série · Entrée enregistrer"
-    if (dateField.activeFocus || untilField.activeFocus) return "↑↓ jour · Maj : semaine · Tab suivant · Entrée enregistrer"
-    if (startZone.activeFocus || endZone.activeFocus) return "Saisir une ville · ↑↓ choisir · Alt+Z masquer les fuseaux"
-    if (locationField.activeFocus && places.results.length > 0) return "↑↓ choisir un lieu · Entrée sélectionner · Échap masquer"
-    return "Tab : champ suivant · Alt+←→ : calendrier · Alt+↑↓ : rappel · Alt+A : journée entière · Alt+Z : fuseaux · Entrée : enregistrer"
+    if (calendarRow.activeFocus) return Fr.t("text.calendrier_tab_suivant_entree_enregistrer_echap_annuler")
+    if (remindRow.activeFocus) return Fr.t("text.rappel_tab_suivant_entree_enregistrer_echap_annuler")
+    if (scopeRow.activeFocus) return Fr.t("text.cette_occurrence_ou_toute_la_serie_entree_enregistrer")
+    if (dateField.activeFocus || untilField.activeFocus) return Fr.t("text.jour_maj_semaine_tab_suivant_entree_enregistrer")
+    if (startZone.activeFocus || endZone.activeFocus) return Fr.t("text.saisir_une_ville_choisir_alt_z_masquer_les_fuseaux")
+    if (locationField.activeFocus && places.results.length > 0) return Fr.t("text.choisir_un_lieu_entree_selectionner_echap_masquer")
+    return Fr.t("text.tab_champ_suivant_alt_calendrier_alt_rappel_alt_a_journee_entiere")
   }
 
   // What the typed days resolve to, so "fri" is never a guess: the day, or
@@ -150,9 +151,9 @@ Item {
       + last.toLocaleDateString(Qt.locale("fr_CA"), "ddd d MMM yyyy") + " · " + (root.spanDays + 1) + " jours"
   }
   readonly property string dayProblem: {
-    if (!Cal.isDayKey(resolvedDay)) return "Date invalide"
-    if (root.untilUnreadable) return "Date de fin invalide"
-    if (root.spanDays < 0) return "La fin précède le début"
+    if (!Cal.isDayKey(resolvedDay)) return Fr.t("text.date_invalide")
+    if (root.untilUnreadable) return Fr.t("text.date_de_fin_invalide")
+    if (root.spanDays < 0) return Fr.t("text.la_fin_precede_le_debut")
     return ""
   }
 
@@ -247,7 +248,7 @@ Item {
     if (root.busy) return
     root.localError = ""
     if (!Cal.isDayKey(root.resolvedDay)) {
-      root.localError = "“" + dateField.text + " ». Essayez vendredi, demain ou 3 oct."
+      root.localError = "“" + dateField.text + Fr.t("text.essayez_vendredi_demain_ou_3_oct")
       return
     }
     if (root.untilUnreadable) {
@@ -420,7 +421,7 @@ Item {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: root.editing ? (root.repeating ? "MODIFIER L’ÉVÉNEMENT RÉCURRENT" : "MODIFIER L’ÉVÉNEMENT") : "NOUVEL ÉVÉNEMENT"
+        text: root.editing ? (root.repeating ? Fr.t("text.modifier_levenement_recurrent") : Fr.t("text.modifier_levenement")) : Fr.t("text.nouvel_evenement")
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -438,7 +439,7 @@ Item {
 
         Button {
           visible: !!root.editing && root.editing.joinUrl !== ""
-          text: root.editing && root.editing.joinTitle !== "" ? root.editing.joinTitle : "Rejoindre"
+          text: root.editing && root.editing.joinTitle !== "" ? root.editing.joinTitle : Fr.t("text.rejoindre")
           iconText: "󰍫"
           foreground: root.foreground
           accent: root.accent
@@ -448,7 +449,7 @@ Item {
 
         Button {
           visible: !!root.editing && root.editing.url !== ""
-          text: "Ouvrir dans " + root.serviceName
+          text: Fr.t("event.open_in", root.serviceName)
           iconText: "󰏌"
           foreground: root.foreground
           accent: root.accent
@@ -461,7 +462,7 @@ Item {
     KeyField {
       id: titleField
       width: parent.width
-      placeholderText: "Quel est l’événement ?"
+      placeholderText: Fr.t("text.quel_est_levenement")
       foreground: root.foreground
       font.family: root.fontFamily
       keyHandler: root.handleKey
@@ -478,7 +479,7 @@ Item {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: "LE"
+        text: Fr.t("text.le")
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -498,7 +499,7 @@ Item {
       Text {
         anchors.verticalCenter: parent.verticalCenter
         leftPadding: Style.space(6)
-        text: "JUSQU’AU"
+        text: Fr.t("text.jusquau")
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -509,7 +510,7 @@ Item {
         id: untilField
         width: Style.space(130)
         anchors.verticalCenter: parent.verticalCenter
-        placeholderText: "même jour"
+        placeholderText: Fr.t("text.meme_jour")
         foreground: root.foreground
         font.family: root.fontFamily
         keyHandler: root.handleKey
@@ -609,7 +610,7 @@ Item {
         id: allDayButton
         anchors.fill: parent
         hasCursor: allDayRow.activeFocus
-        text: "Toute la journée"
+        text: Fr.t("text.toute_la_journee")
         iconText: root.allDay ? "󰄵" : "󰄱"
         bordered: true
         selected: root.allDay
@@ -624,7 +625,7 @@ Item {
         visible: !root.allDay
         y: (timeRow.lineHeight - height) / 2
         leftPadding: Style.space(6)
-        text: "DE"
+        text: Fr.t("text.de")
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -659,7 +660,7 @@ Item {
       Text {
         visible: !root.allDay
         y: (timeRow.lineHeight - height) / 2
-        text: "À"
+        text: Fr.t("text.a")
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -673,7 +674,7 @@ Item {
         KeyField {
           id: endField
           width: Style.space(96)
-          placeholderText: "+1 h"
+          placeholderText: Fr.t("text.1_h")
           foreground: root.foreground
           font.family: root.fontFamily
           keyHandler: root.handleKey
@@ -759,7 +760,7 @@ Item {
     KeyField {
       id: locationField
       width: parent.width
-      placeholderText: "Lieu (facultatif)"
+      placeholderText: Fr.t("text.lieu_facultatif")
       foreground: root.foreground
       font.family: root.fontFamily
       keyHandler: root.handleKey
@@ -860,7 +861,7 @@ Item {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: "RAPPEL"
+        text: Fr.t("text.rappel")
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -874,12 +875,12 @@ Item {
         background: "transparent"
         anchors.verticalCenter: parent.verticalCenter
         focusable: false
-        options: (root.keepsReminders ? [{ value: "keep", label: "Sans changement" }] : []).concat([
-          { value: "", label: "Aucun" },
-          { value: "10m", label: "10 min" },
-          { value: "30m", label: "30 min" },
-          { value: "1h", label: "1 h" },
-          { value: "1d", label: "1 j" }
+        options: (root.keepsReminders ? [{ value: "keep", label: Fr.t("text.sans_changement") }] : []).concat([
+          { value: "", label: Fr.t("text.aucun") },
+          { value: "10m", label: Fr.t("text.10_min") },
+          { value: "30m", label: Fr.t("text.30_min") },
+          { value: "1h", label: Fr.t("text.1_h_f4926b") },
+          { value: "1d", label: Fr.t("text.1_j") }
         ])
         value: root.remind
         // Lights the chosen reminder while the row has the keyboard.
@@ -901,7 +902,7 @@ Item {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: "MODIFIER"
+        text: Fr.t("text.modifier")
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -935,7 +936,7 @@ Item {
         anchors.right: cancelButton.left
         anchors.rightMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        text: root.busy ? (root.editing ? "Enregistrement…" : "Ajout…") : (root.localError !== "" ? root.localError : root.error)
+        text: root.busy ? (root.editing ? Fr.t("text.enregistrement") : Fr.t("text.ajout")) : (root.localError !== "" ? root.localError : root.error)
         color: root.busy ? Qt.darker(root.foreground, 1.4) : Commons.Color.urgent
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -949,7 +950,7 @@ Item {
         anchors.right: createButton.left
         anchors.rightMargin: Style.space(6)
         anchors.verticalCenter: parent.verticalCenter
-        text: "Annuler"
+        text: Fr.t("text.annuler")
         foreground: root.foreground
         accent: root.accent
         fontFamily: root.fontFamily
@@ -960,7 +961,7 @@ Item {
         id: createButton
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        text: root.editing ? "Enregistrer" : "Ajouter"
+        text: root.editing ? Fr.t("text.enregistrer") : Fr.t("text.ajouter")
         iconText: root.editing ? "󰆓" : "󰐕"
         bordered: true
         enabled: !root.busy

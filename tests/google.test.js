@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict')
-const Cal = require('../Calendar.js')
+const Cal = require('./load-calendar.cjs')
 const Google = require('../backends/Google.js')
 const backend = Google.configured('/tmp/a folder/google.py', 'calendar@example.test')
 

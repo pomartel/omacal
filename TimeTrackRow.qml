@@ -1,3 +1,4 @@
+import "i18n/Fr.js" as Fr
 import QtQuick
 import qs.Commons as Commons
 import qs.Commons
@@ -89,7 +90,7 @@ Item {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: root.track ? (root.track.named ? root.track.name : root.track.name + " · cliquer pour nommer") : ""
+        text: root.track ? (root.track.named ? root.track.name : root.track.name + Fr.t("text.cliquer_pour_nommer")) : ""
         color: root.track && root.track.named ? root.foreground : Qt.darker(root.foreground, 1.6)
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -103,7 +104,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        placeholderText: "Quelle activité ? Entrée pour enregistrer"
+        placeholderText: Fr.t("text.quelle_activite_entree_pour_enregistrer")
         foreground: root.foreground
         font.family: root.fontFamily
         verticalPadding: Style.space(3)
@@ -162,7 +163,7 @@ Item {
 
     PanelToolTip {
       visible: rowMouse.containsMouse && !deleteMouse.containsMouse && !!root.track
-      text: root.track ? (root.track.named ? "Cliquer pour renommer" : "Cliquer pour nommer cette activité")
+      text: root.track ? (root.track.named ? Fr.t("text.cliquer_pour_renommer") : Fr.t("text.cliquer_pour_nommer_cette_activite"))
         + (root.track.notes !== "" ? "\n" + root.track.notes : "") : ""
       fontFamily: root.fontFamily
     }
@@ -179,7 +180,7 @@ Item {
       width: parent.width - keepButton.width - removeButton.width - parent.spacing * 2
       anchors.verticalCenter: parent.verticalCenter
       textFormat: Text.PlainText
-      text: root.busy ? "Suppression…" : "Supprimer ce suivi de temps ?"
+      text: root.busy ? Fr.t("text.suppression") : Fr.t("text.supprimer_ce_suivi_de_temps")
       color: root.foreground
       font.family: root.fontFamily
       font.pixelSize: Style.font.body
@@ -189,7 +190,7 @@ Item {
     Button {
       id: keepButton
       anchors.verticalCenter: parent.verticalCenter
-      text: "Conserver"
+      text: Fr.t("text.conserver")
       enabled: !root.busy
       foreground: root.foreground
       fontFamily: root.fontFamily
@@ -201,7 +202,7 @@ Item {
     Button {
       id: removeButton
       anchors.verticalCenter: parent.verticalCenter
-      text: "Supprimer"
+      text: Fr.t("text.supprimer")
       enabled: !root.busy
       bordered: true
       foreground: root.foreground

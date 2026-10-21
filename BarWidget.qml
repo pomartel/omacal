@@ -1,3 +1,4 @@
+import "i18n/Fr.js" as Fr
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -244,7 +245,7 @@ BarWidget {
   // has just become ready reads what is wanted.
   function cacheNote(dayKey) {
     var entry = googleSource.weekCache[Cal.weekStartKey(dayKey)];
-    return entry && entry.cached ? "Données en cache · " + new Date(entry.at).toLocaleString(Qt.locale("fr_CA"), "d MMM HH:mm") : "";
+    return entry && entry.cached ? Fr.t("text.donnees_en_cache") + new Date(entry.at).toLocaleString(Qt.locale("fr_CA"), "d MMM HH:mm") : "";
   }
   function sourceUpdated() {
     if (!root.sources || !root.activeSources) return;
@@ -781,7 +782,7 @@ BarWidget {
       }
       if (root.alerting) {
         var minutes = Cal.minutesUntil(root.alertEvent, root.displayDate.getTime())
-        return (minutes <= 0 ? "Maintenant" : "Dans " + minutes + " min") + " · " + root.alertEvent.title
+        return (minutes <= 0 ? Fr.t("text.maintenant") : Fr.t("time.in_minutes", minutes)) + " · " + root.alertEvent.title
       }
       if (root.nextEvent) return "À venir : " + Cal.eventRangeLabel(root.nextEvent, root.hour24)
         + " · " + root.nextEvent.title

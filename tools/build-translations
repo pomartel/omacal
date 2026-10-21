@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""Build the synchronous QML/JavaScript adapter for the French catalog."""
+import json
+from pathlib import Path
+import sys
+
+root = Path(__file__).resolve().parent.parent
+catalog = json.loads((root / "i18n/fr.json").read_text(encoding="utf-8"))
+assert all(isinstance(key, str) and isinstance(value, str) for key, value in catalog.items())
+raw = json.dumps(catalog, ensure_ascii=False, indent=2, sort_keys=True)
+output = (
+    "// Generated from fr.json by tools/build-translations. Do not edit.\n"
+    "var catalog = " + raw + ";\n\n"
+    "function t(key) {\n"
+    "    var args = arguments;\n"
+    "    var text = Object.prototype.hasOwnProperty.call(catalog, key) ? catalog[key] : key;\n"
+    "    return text.replace(/%([1-9][0-9]*)/g, function(match, index) {\n"
+    "        return Number(index) < args.length ? String(args[Number(index)]) : match;\n"
+    "    });\n"
+    "}\n\n"
+    'if (typeof module !== "undefined") module.exports = { t: t, catalog: catalog };\n'
+)
+target = root / "i18n/Fr.js"
+if "--check" in sys.argv:
+    if target.read_text(encoding="utf-8") != output:
+        sys.exit("Translations are stale: run python3 tools/build-translations")
+else:
+    target.write_text(output, encoding="utf-8")

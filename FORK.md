@@ -45,6 +45,14 @@ lectures et écritures. Aucun secret n’est enregistré dans le cache.
 
 ## Entretien
 
+Les traductions françaises se modifient dans `i18n/fr.json`, puis se génèrent
+avec `python3 tools/build-translations`. `i18n/Fr.js` est l’adaptateur généré,
+chargé synchroniquement par QML et les modèles JavaScript. Ne pas le modifier
+à la main. Les messages avec des données utilisent des paramètres `%1`, `%2`.
+Le français reste explicite, indépendamment de la langue du shell.
+Les mots reconnus par les parseurs de dates, les identifiants techniques et
+les métadonnées du manifeste ne sont pas des traductions d’interface.
+
 `backends/google.py` conserve le transport et les conversions upstream.
 `backends/google_profile.py` isole la vérification du compte et les points
 d’enregistrement du cache ; `backends/cache.py` gère les instantanés.

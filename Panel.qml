@@ -1,3 +1,4 @@
+import "i18n/Fr.js" as Fr
 import QtQuick
 import Quickshell
 import qs.Commons as Commons
@@ -296,10 +297,10 @@ Panel {
     var lines = []
     for (var i = 0; i < dayEvents.length && i < 8; i++) {
       var event = dayEvents[i]
-      var time = event.allDay ? "Toute la journée" : Cal.eventTimeOnDay(event, key, root.hour24)
+      var time = event.allDay ? Fr.t("text.toute_la_journee") : Cal.eventTimeOnDay(event, key, root.hour24)
       lines.push(time + " · " + event.title)
     }
-    if (dayEvents.length > 8) lines.push("et " + (dayEvents.length - 8) + " autres")
+    if (dayEvents.length > 8) lines.push(Fr.t("events.more", dayEvents.length - 8))
     return lines.join("\n")
   }
 
@@ -530,21 +531,7 @@ Panel {
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.body
-            text: "RACCOURCIS CLAVIER\n"
-              + "← / → ou H / L : jour précédent / suivant\n"
-              + "↑ / ↓ ou K / J : semaine précédente / suivante\n"
-              + "Ctrl + flèches ou H/J/K/L : mois précédent / suivant\n"
-              + "[ / ] : mois · { / } : année\n"
-              + "Début / Entrée / T : aujourd’hui · W : début de semaine\n"
-              + "N : nouvel événement · R : actualiser · O : ouvrir dans le navigateur\n"
-              + "S : paramètres · Tab / Maj+Tab : changer de panneau\n"
-              + "? : afficher/masquer l’aide · Échap : fermer\n\n"
-              + "NOUVEL ÉVÉNEMENT\n"
-              + "Tab / Maj+Tab : changer de champ · ↑ / ↓ : ajuster la date/l’heure\n"
-              + "Maj + ↑ / ↓ dans la date : changer de semaine\n"
-              + "Alt + ← / → : calendrier · Alt + ↑ / ↓ : rappel\n"
-              + "Alt+A : journée entière · Entrée : enregistrer · Échap : annuler\n"
-              + "Raccourci d’ajout rapide : configurable dans les paramètres"
+            text: Fr.t("help.keyboard")
           }
 
           // ---- Hero: today, centered. Once the view has stepped back
@@ -602,7 +589,7 @@ Panel {
 
               PanelToolTip {
                 visible: heroMouse.containsMouse
-                text: "Revenir à aujourd’hui"
+                text: Fr.t("text.revenir_a_aujourdhui")
                 fontFamily: root.contentFontFamily
               }
             }
@@ -635,7 +622,7 @@ Panel {
 
                 Text {
                   anchors.verticalCenter: parent.verticalCenter
-                  text: "NAISSANCE"
+                  text: Fr.t("text.naissance")
                   color: Qt.darker(root.contentForeground, 1.5)
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.bodySmall
@@ -646,7 +633,7 @@ Panel {
                   id: bornField
                   width: Style.space(70)
                   anchors.verticalCenter: parent.verticalCenter
-                  placeholderText: "année"
+                  placeholderText: Fr.t("text.annee")
                   foreground: root.contentForeground
                   font.family: root.contentFontFamily
                   allowed: /[0-9]/
@@ -659,7 +646,7 @@ Panel {
                   anchors.verticalCenter: parent.verticalCenter
                   anchors.verticalCenterOffset: 0
                   leftPadding: Style.space(6)
-                  text: "ÂGE PRÉVU"
+                  text: Fr.t("text.age_prevu")
                   color: Qt.darker(root.contentForeground, 1.5)
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.bodySmall
@@ -747,7 +734,7 @@ Panel {
                 id: lifeLabel
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                text: "VIE"
+                text: Fr.t("text.vie")
                 color: Qt.darker(root.contentForeground, 1.5)
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -846,7 +833,7 @@ Panel {
 
                   Text {
                     anchors.centerIn: parent
-                    text: "S"
+                    text: Fr.t("text.s")
                     color: weekStartMouse.containsMouse
                       ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
                       : Qt.darker(root.contentForeground, 1.9)
@@ -866,7 +853,7 @@ Panel {
 
                   PanelToolTip {
                     visible: weekStartMouse.containsMouse
-                    text: "Commencer les semaines le " + root.nextWeekStartLabel
+                    text: Fr.t("calendar.week_start", root.nextWeekStartLabel)
                     fontFamily: root.contentFontFamily
                   }
                 }
@@ -1080,7 +1067,7 @@ Panel {
                 anchors.leftMargin: -Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
                 iconText: "󰅁"
-                tooltipText: "Mois précédent"
+                tooltipText: Fr.t("text.mois_precedent")
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
                 onClicked: root.moveMonth(-1)
@@ -1091,7 +1078,7 @@ Panel {
                 anchors.rightMargin: -Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
                 iconText: "󰅂"
-                tooltipText: "Mois suivant"
+                tooltipText: Fr.t("text.mois_suivant")
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
                 onClicked: root.moveMonth(1)
@@ -1188,8 +1175,8 @@ Panel {
                   Button {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !root.selectedIsToday || !root.viewingCurrentMonth
-                    text: "Aujourd’hui"
-                    tooltipText: "Revenir à aujourd’hui (T)"
+                    text: Fr.t("text.aujourdhui")
+                    tooltipText: Fr.t("text.revenir_a_aujourdhui_t")
                     bordered: true
                     foreground: root.contentForeground
                     fontFamily: root.contentFontFamily
@@ -1200,7 +1187,7 @@ Panel {
 
                   PanelActionButton {
                     iconText: "󰐕"
-                    tooltipText: "Nouvel événement (N)"
+                    tooltipText: Fr.t("text.nouvel_evenement_n")
                     enabled: !!root.hostWidget && root.hostWidget.writableCalendars.length > 0
                     foreground: root.contentForeground
                     fontFamily: root.contentFontFamily
@@ -1210,7 +1197,7 @@ Panel {
                   PanelActionButton {
                     iconText: "󰏌"
                     visible: !!root.hostWidget && root.hostWidget.capabilities.dayLink
-                    tooltipText: "Ouvrir cette journée dans " + (root.hostWidget ? (root.hostWidget.dayLinkName || root.hostWidget.backendName) : "") + " (O)"
+                    tooltipText: Fr.t("text.ouvrir_cette_journee_dans") + (root.hostWidget ? (root.hostWidget.dayLinkName || root.hostWidget.backendName) : "") + " (O)"
                     foreground: root.contentForeground
                     fontFamily: root.contentFontFamily
                     onClicked: root.openSelectedDay()
@@ -1218,7 +1205,7 @@ Panel {
 
                   PanelActionButton {
                     iconText: "󰒓"
-                    tooltipText: "Paramètres (S)"
+                    tooltipText: Fr.t("text.parametres_s")
                     foreground: root.contentForeground
                     fontFamily: root.contentFontFamily
                     onClicked: root.openSettings()
@@ -1226,7 +1213,7 @@ Panel {
 
                   PanelActionButton {
                     iconText: "󰑐"
-                    tooltipText: root.hostWidget && root.hostWidget.loading ? "Chargement de " + root.hostWidget.backendName + "…" : "Actualiser (R)"
+                    tooltipText: root.hostWidget && root.hostWidget.loading ? Fr.t("source.loading", root.hostWidget.backendName) : Fr.t("text.actualiser_r")
                     foreground: root.contentForeground
                     fontFamily: root.contentFontFamily
                     opacity: root.hostWidget && root.hostWidget.loading ? 0.45 : 1
@@ -1304,9 +1291,9 @@ Panel {
                     var host = root.hostWidget
                     if (!host) return ""
                     if (host.lastError !== "") return host.lastError
-                    if (!host.loaded) return "Chargement de " + host.backendName + "…"
+                    if (!host.loaded) return Fr.t("source.loading", host.backendName)
                     if (host.anySourceReady === false) return "No calendar is set up. Open the settings (S) to add one."
-                    return root.selectedIsToday ? "Aucun événement aujourd’hui." : "Aucun événement ce jour-là."
+                    return root.selectedIsToday ? Fr.t("text.aucun_evenement_aujourdhui") : Fr.t("text.aucun_evenement_ce_jour_la")
                   }
                   color: root.hostWidget && root.hostWidget.lastError !== ""
                     ? Commons.Color.urgent
@@ -1337,7 +1324,7 @@ Panel {
                 Text {
                   textFormat: Text.PlainText
                   topPadding: Style.space(4)
-                  text: "TEMPS SUIVI · " + Cal.durationLabel(Cal.trackedOnDay(root.selectedTracks, root.selectedKey))
+                  text: Fr.t("tracking.total", Cal.durationLabel(Cal.trackedOnDay(root.selectedTracks, root.selectedKey)))
                   color: Qt.darker(root.contentForeground, 1.5)
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.caption
@@ -1397,10 +1384,10 @@ Panel {
                   elide: Text.ElideRight
                   text: {
                     var track = parent.track
-                    if (!track) return "Aucun suivi en cours"
+                    if (!track) return Fr.t("text.aucun_suivi_en_cours")
                     var since = Cal.formatTime(new Date(track.startMs), root.hour24)
-                    return "Suivi en cours : " + Cal.durationLabel(root.nowMs - track.startMs)
-                      + " · depuis " + since + (track.title !== "" ? " · " + track.title : "")
+                    return Fr.t("text.suivi_en_cours") + Cal.durationLabel(root.nowMs - track.startMs)
+                      + Fr.t("text.depuis") + since + (track.title !== "" ? " · " + track.title : "")
                   }
                   color: parent.track ? root.contentForeground : Qt.darker(root.contentForeground, 1.6)
                   font.family: root.contentFontFamily
@@ -1411,7 +1398,7 @@ Panel {
                   id: trackButton
                   anchors.right: parent.right
                   anchors.verticalCenter: parent.verticalCenter
-                  text: parent.track ? "Arrêter" : "Démarrer"
+                  text: parent.track ? Fr.t("text.arreter") : Fr.t("text.demarrer")
                   iconText: parent.track ? "󰓛" : "󰐊"
                   bordered: true
                   enabled: !!root.hostWidget && !root.hostWidget.writing

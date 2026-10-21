@@ -1,3 +1,4 @@
+import "i18n/Fr.js" as Fr
 import QtQuick
 import Quickshell.Io
 import qs.Commons as Commons
@@ -54,24 +55,24 @@ FocusScope {
   // What each choice does, said plainly under its row. The row describes
   // the chip under the pointer, or the chosen one.
   readonly property var barEventOptions: [
-    { value: "soon", label: "Nom + heure",
-      help: "Affiche le nom et l’heure de l’événement, par exemple « Réunion · dans 12 min », du premier rappel jusqu’à la fin." },
-    { value: "name", label: "Nom",
-      help: "Affiche seulement le nom de l’événement, du premier rappel jusqu’à la fin." },
-    { value: "time", label: "Heure",
-      help: "Affiche seulement l’heure de l’événement, par exemple « dans 12 min », du premier rappel jusqu’à la fin." },
-    { value: "next", label: "Suivant",
-      help: "Affiche le prochain événement d’aujourd’hui et son heure, par exemple « Souper · à 18:30 ». Les événements avec un rappel actif sont prioritaires." },
-    { value: "off", label: "Désactivé",
-      help: "Affiche seulement l’horloge. Une icône signale un événement à venir ; survolez l’horloge pour voir son nom." }
+    { value: "soon", label: Fr.t("text.nom_heure"),
+      help: Fr.t("text.affiche_le_nom_et_lheure_de_levenement_par_exemple_reunion_dans_1") },
+    { value: "name", label: Fr.t("text.nom"),
+      help: Fr.t("text.affiche_seulement_le_nom_de_levenement_du_premier_rappel_jusqua_l") },
+    { value: "time", label: Fr.t("text.heure"),
+      help: Fr.t("text.affiche_seulement_lheure_de_levenement_par_exemple_dans_12_min_du") },
+    { value: "next", label: Fr.t("text.suivant"),
+      help: Fr.t("text.affiche_le_prochain_evenement_daujourdhui_et_son_heure_par_exempl") },
+    { value: "off", label: Fr.t("text.desactive"),
+      help: Fr.t("text.affiche_seulement_lhorloge_une_icone_signale_un_evenement_a_venir") }
   ]
 
   readonly property var leadOptions: [
-    { value: "0", label: "Jamais", help: "Seuls les événements avec un rappel apparaissent dans la barre, à partir de ce rappel." },
-    { value: "5", label: "5 min", help: "Les événements sans rappel apparaissent 5 minutes avant le début." },
-    { value: "15", label: "15 min", help: "Les événements sans rappel apparaissent 15 minutes avant le début." },
-    { value: "30", label: "30 min", help: "Les événements sans rappel apparaissent 30 minutes avant le début." },
-    { value: "60", label: "1 h", help: "Les événements sans rappel apparaissent une heure avant le début." }
+    { value: "0", label: Fr.t("text.jamais"), help: Fr.t("text.seuls_les_evenements_avec_un_rappel_apparaissent_dans_la_barre_a_") },
+    { value: "5", label: Fr.t("text.5_min"), help: Fr.t("text.les_evenements_sans_rappel_apparaissent_5_minutes_avant_le_debut") },
+    { value: "15", label: Fr.t("text.15_min"), help: Fr.t("text.les_evenements_sans_rappel_apparaissent_15_minutes_avant_le_debut") },
+    { value: "30", label: Fr.t("text.30_min"), help: Fr.t("text.les_evenements_sans_rappel_apparaissent_30_minutes_avant_le_debut") },
+    { value: "60", label: Fr.t("text.1_h_f4926b"), help: Fr.t("text.les_evenements_sans_rappel_apparaissent_une_heure_avant_le_debut") }
   ]
 
   property int barEventHover: -1
@@ -278,7 +279,7 @@ FocusScope {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: "PARAMÈTRES"
+        text: Fr.t("text.parametres")
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.subtitle
@@ -290,8 +291,8 @@ FocusScope {
         id: backButton
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        text: "Terminé"
-        tooltipText: "Retour au calendrier (Échap)"
+        text: Fr.t("text.termine")
+        tooltipText: Fr.t("text.retour_au_calendrier_echap")
         bordered: true
         foreground: root.foreground
         fontFamily: root.fontFamily
@@ -301,7 +302,7 @@ FocusScope {
     }
 
     // ---- Services
-    Label { text: "SERVICES DE CALENDRIER" }
+    Label { text: Fr.t("text.services_de_calendrier") }
 
     Toggle {
       width: parent.width
@@ -315,7 +316,7 @@ FocusScope {
 
     Toggle {
       width: parent.width
-      label: "Google Agenda"
+      label: Fr.t("text.google_agenda")
       description: root.sourceNote("google", "Reads and writes Google Calendar, signed in through gws, the Google Workspace CLI: "
         + "install googleworkspace-cli and run `gws auth login -s calendar`.")
       checked: root.value("googleEnabled", true) !== false
@@ -324,14 +325,14 @@ FocusScope {
       onClicked: root.save("googleEnabled", !checked)
     }
 
-    Label { text: "COMPTE GOOGLE" }
+    Label { text: Fr.t("text.compte_google") }
     KeyField {
       width: parent.width
       text: String(root.value("googleAccount", ""))
-      placeholderText: "Adresse du compte Google"
+      placeholderText: Fr.t("text.adresse_du_compte_google")
       onEditingFinished: root.save("googleAccount", text.trim())
     }
-    Label { text: "FLUX DE CALENDRIER" }
+    Label { text: Fr.t("text.flux_de_calendrier") }
 
     Repeater {
       model: root.feeds
@@ -379,7 +380,7 @@ FocusScope {
           id: feedRemove
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
-          text: "Retirer"
+          text: Fr.t("text.retirer")
           focusable: true
           enabled: !feedWriter.running
           foreground: root.foreground
@@ -396,7 +397,7 @@ FocusScope {
       KeyField {
         id: feedNameField
         width: Style.space(110)
-        placeholderText: "Nom"
+        placeholderText: Fr.t("text.nom")
         foreground: root.foreground
         font.family: root.fontFamily
         keyHandler: function(event) { if (event.key === Qt.Key_Escape) { root.closed(); event.accepted = true } }
@@ -436,7 +437,7 @@ FocusScope {
     }
 
     // ---- Bar
-    Label { text: "ÉVÉNEMENT DANS LA BARRE" }
+    Label { text: Fr.t("text.evenement_dans_la_barre") }
 
     ButtonGroup {
       id: barEventGroup
@@ -457,7 +458,7 @@ FocusScope {
       text: root.helpFor(root.barEventOptions, root.barEventHover, String(root.value("barEvent", "soon")))
     }
 
-    Label { text: "PRÉAVIS POUR LES ÉVÉNEMENTS SANS RAPPEL" }
+    Label { text: Fr.t("text.preavis_pour_les_evenements_sans_rappel") }
 
     ButtonGroup {
       // Transparent at rest, not the theme background: the hover fill is a
@@ -477,7 +478,7 @@ FocusScope {
       text: root.helpFor(root.leadOptions, root.leadHover, String(Cal.normalizedAlertLead(root.value("alertLeadMinutes", 15))))
     }
 
-    Label { text: "HEURES" }
+    Label { text: Fr.t("text.heures") }
 
     ButtonGroup {
       // Transparent at rest, not the theme background: the hover fill is a
@@ -485,9 +486,9 @@ FocusScope {
       // halfway through before settling.
       background: "transparent"
       options: [
-        { value: "auto", label: "Selon le système" },
-        { value: "24", label: "24 h" },
-        { value: "12", label: "12 h" }
+        { value: "auto", label: Fr.t("text.selon_le_systeme") },
+        { value: "24", label: Fr.t("text.24_h") },
+        { value: "12", label: Fr.t("text.12_h") }
       ]
       value: String(root.value("timeFormat", "auto"))
       foreground: root.foreground
@@ -499,8 +500,8 @@ FocusScope {
     // ---- Switches
     Toggle {
       width: parent.width
-      label: "Notifications"
-      description: "Afficher les rappels des événements dans les notifications du bureau."
+      label: Fr.t("text.notifications")
+      description: Fr.t("text.afficher_les_rappels_des_evenements_dans_les_notifications_du_bur")
       checked: root.value("notifications", true) !== false
       foreground: root.foreground
       fontFamily: root.fontFamily
@@ -510,8 +511,8 @@ FocusScope {
     Toggle {
       width: parent.width
       visible: !!root.host && root.host.capabilities.watch
-      label: "Synchronisation en direct"
-      description: "Afficher en quelques secondes les modifications faites ailleurs."
+      label: Fr.t("text.synchronisation_en_direct")
+      description: Fr.t("text.afficher_en_quelques_secondes_les_modifications_faites_ailleurs")
       checked: root.value("liveSync", true) !== false
       foreground: root.foreground
       fontFamily: root.fontFamily
@@ -521,7 +522,7 @@ FocusScope {
     // ---- Places
     Toggle {
       width: parent.width
-      label: "Suggérer des lieux"
+      label: Fr.t("text.suggerer_des_lieux")
       description: "Look up what you type in Where? and offer the places it could mean, as HEY does."
       checked: root.value("placeSuggestions", false) === true
       foreground: root.foreground
@@ -560,7 +561,7 @@ FocusScope {
       Button {
         anchors.verticalCenter: parent.verticalCenter
         visible: placeKey.provider === "google"
-        text: "Retirer"
+        text: Fr.t("text.retirer")
         focusable: true
         enabled: !keyWriter.running
         foreground: root.foreground
@@ -580,7 +581,7 @@ FocusScope {
     }
 
     // ---- Calendars
-    Label { text: "CALENDRIERS" }
+    Label { text: Fr.t("text.calendriers") }
 
     Item {
       id: calendarRow
@@ -683,12 +684,12 @@ FocusScope {
     }
 
     Note {
-      text: "Les calendriers masqués sont exclus de la grille, de la journée et de la barre. "
+      text: Fr.t("text.les_calendriers_masques_sont_exclus_de_la_grille_de_la_journee_et")
         + (root.host ? root.host.modeNote() : "")
     }
 
     // ---- Quick add
-    Label { text: "RACCOURCI D’AJOUT RAPIDE" }
+    Label { text: Fr.t("text.raccourci_dajout_rapide") }
 
     Row {
       spacing: Style.space(8)
@@ -697,7 +698,7 @@ FocusScope {
         id: shortcutField
         width: Style.space(220)
         text: String(root.value("quickAddShortcut", "ALT + SHIFT + SPACE"))
-        placeholderText: "Désactivé"
+        placeholderText: Fr.t("text.desactive")
         foreground: root.foreground
         font.family: root.fontFamily
         onAccepted: root.save("quickAddShortcut", text.replace(/^\s+|\s+$/g, "").toUpperCase())
@@ -706,7 +707,7 @@ FocusScope {
 
       Button {
         anchors.verticalCenter: parent.verticalCenter
-        text: "Appliquer"
+        text: Fr.t("text.appliquer")
         bordered: true
         focusable: true
         foreground: root.foreground
@@ -717,7 +718,7 @@ FocusScope {
     }
 
     Note {
-      text: "Utilisez des modificateurs et une touche, par exemple ALT + SHIFT + SPACE. Un champ vide désactive le raccourci. Les raccourcis déjà utilisés sont conservés."
+      text: Fr.t("text.utilisez_des_modificateurs_et_une_touche_par_exemple_alt_shift_sp")
     }
   }
 }

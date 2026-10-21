@@ -1,3 +1,4 @@
+import "i18n/Fr.js" as Fr
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -23,7 +24,7 @@ Item {
     if (busy || !enabled) return
     var parsed = Model.parse(next)
     if (!parsed) {
-      message = "Ajout rapide : utilisez des modificateurs et une touche, par exemple ALT + SHIFT + SPACE."
+      message = Fr.t("text.ajout_rapide_utilisez_des_modificateurs_et_une_touche_par_exemple")
       console.warn("pomartel.omacal:", message)
       return
     }
@@ -36,14 +37,14 @@ Item {
   function checkBindings(text, code) {
     if (code !== 0 || !text.trim()) {
       busy = false
-      message = "Ajout rapide : impossible de lire les raccourcis Hyprland."
+      message = Fr.t("text.ajout_rapide_impossible_de_lire_les_raccourcis_hyprland")
       return
     }
     var list = Model.bindings(text)
     var taken = Model.conflict(list, Model.parse(candidate))
     if (taken) {
       busy = false
-      message = "Ajout rapide : " + candidate + " est déjà attribué à " + (taken.description || "une autre action") + "."
+      message = Fr.t("shortcut.conflict", candidate, taken.description || Fr.t("text.une_autre_action"))
       console.warn("pomartel.omacal:", message)
       return
     }
@@ -82,7 +83,7 @@ Item {
     onExited: function(code) {
       root.busy = false
       if (code !== 0 || registerOutput.text.trim() !== "ok") {
-        root.message = "Ajout rapide : impossible d’attribuer le raccourci. Vérifiez la configuration Hyprland."
+        root.message = Fr.t("text.ajout_rapide_impossible_dattribuer_le_raccourci_verifiez_la_confi")
         console.warn("pomartel.omacal:", root.message)
         return
       }
