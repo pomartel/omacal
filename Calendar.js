@@ -922,7 +922,7 @@ function barWhen(event, nowMs, hour24) {
   if (isNow(event, nowMs)) return event.endMs !== null ? Fr.t("text.jusqua") + formatTime(new Date(event.endMs), hour24) : Fr.t("text.maintenant_5382d6")
   var minutes = Math.max(0, Math.round((event.startMs - nowMs) / 60000))
   if (minutes === 0) return Fr.t("text.maintenant_5382d6")
-  if (minutes < 60) return "in " + minutes + "m"
+  if (minutes < 60) return Fr.t("bar.in_minutes", minutes)
   var startKey = keyForDate(new Date(event.startMs))
   var time = formatTime(new Date(event.startMs), hour24)
   if (startKey === todayKey) return Fr.t("text.a_4c6ead") + time
@@ -935,7 +935,7 @@ var SHORT_MONTHS = [Fr.t("text.janv"), Fr.t("text.fevr"), Fr.t("text.mars"), Fr.
 
 function dayWord(key, todayKey) {
   var days = daysBetween(todayKey, key)
-  if (days === 1) return "tomorrow"
+  if (days === 1) return Fr.t("date.tomorrow_lower")
   var date = dateFromKey(key)
   if (days > 1 && days < 7) return SHORT_WEEKDAYS[date.getDay()]
   return date.getDate() + " " + SHORT_MONTHS[date.getMonth()]
@@ -1651,7 +1651,7 @@ function formatTime(date, hour24) {
 
 function eventRangeLabel(event, hour24) {
   if (!event) return ""
-  if (event.allDay) return "All day"
+  if (event.allDay) return Fr.t("text.toute_la_journee")
   if (event.startMs === null) return ""
   var start = formatTime(new Date(event.startMs), hour24)
   if (event.endMs === null || event.endMs <= event.startMs) return start

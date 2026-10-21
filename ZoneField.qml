@@ -1,3 +1,4 @@
+import "i18n/Fr.js" as Fr
 import QtQuick
 import qs.Commons
 import qs.Ui
@@ -36,7 +37,7 @@ KeyField {
     root.cursor = 0
   }
 
-  placeholderText: root.fallback !== "" ? Cal.zoneCity(root.fallback) : "City"
+  placeholderText: root.fallback !== "" ? Cal.zoneCity(root.fallback) : Fr.t("zone.city")
   onQueryChanged: root.cursor = 0
 
   // Up and Down pick among the matches; every other key goes on to the

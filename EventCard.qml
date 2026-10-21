@@ -185,7 +185,7 @@ Item {
         if (root.event.calendar !== "") lines.push(root.event.calendar)
         if (root.event.location !== "") lines.push(root.event.location)
         if (root.event.recurring) lines.push(Fr.t("text.recurrent"))
-        lines.push("Click to edit")
+        lines.push(Fr.t("event.edit_hint"))
         return lines.join("\n")
       }
     }
@@ -214,7 +214,7 @@ Item {
 
       PanelToolTip {
         visible: joinMouse.containsMouse
-        text: root.event && root.event.joinTitle !== "" ? root.event.joinTitle : "Join the meeting"
+        text: root.event && root.event.joinTitle !== "" ? root.event.joinTitle : Fr.t("event.join")
         fontFamily: root.fontFamily
       }
     }

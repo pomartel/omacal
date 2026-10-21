@@ -1,4 +1,5 @@
 import QtQuick
+import "i18n/Backend.js" as Backend
 import Quickshell.Io
 import "Calendar.js" as Cal
 
@@ -190,9 +191,9 @@ Item {
     // missing, signed out, or offline), so the panel says so rather than
     // showing a week that looks clear.
     var said = failed ? Cal.rangeOutputError(stdout) : ""
-    root.error = !failed ? ""
+    root.error = Backend.message(!failed ? ""
       : (said !== "" ? said
-        : (exitCode === 0 ? root.name + " did not answer. Is it signed in?" : root.name + " exited with status " + exitCode + "."))
+        : (exitCode === 0 ? root.name + " did not answer. Is it signed in?" : root.name + " exited with status " + exitCode + ".")))
     root.weekCache = cache
     root.loaded = true
     root.fetchingWeeks = []
@@ -297,7 +298,7 @@ Item {
         root.missing = probed.missing === true
         root.quiet = probed.quiet === true
         root.checked = true
-        root.error = root.mode === "" ? (probed.error || root.name + " could not start.") : ""
+        root.error = root.mode === "" ? Backend.message(probed.error || root.name + " could not start.") : ""
         if (root.mode === "") root.loaded = true
         else if (!calendarsProcess.running) {
           calendarsProcess.command = root.command(root.backend.calendarsCommand)

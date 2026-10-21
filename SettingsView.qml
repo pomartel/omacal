@@ -1,4 +1,5 @@
 import "i18n/Fr.js" as Fr
+import "i18n/Backend.js" as Backend
 import QtQuick
 import Quickshell.Io
 import qs.Commons as Commons
@@ -98,9 +99,9 @@ FocusScope {
     if (!root.host || typeof root.host.sourceStatus !== "function") return setup
     var status = root.host.sourceStatus(id)
     if (!status.enabled) return setup
-    if (status.ready) return status.account !== "" ? "Reading " + status.account + "." : "Reading."
+    if (status.ready) return status.account !== "" ? Fr.t("source.reading_account", status.account) : Fr.t("source.reading")
     if (status.error !== "") return status.error
-    return "Checking…"
+    return Fr.t("source.checking")
   }
 
   // Off in the screenshot harness, which shows sample feeds.
@@ -116,11 +117,11 @@ FocusScope {
     if (feedWriter.running) return
     var url = feedUrlField.text.replace(/^\s+|\s+$/g, "")
     if (!Feeds.isFeedAddress(url)) {
-      root.feedError = "Paste a calendar address that starts with https:// or webcal://."
+      root.feedError = Fr.t("feed.invalid_address")
       return
     }
     root.feedError = ""
-    root.feedNote = "Reading the feed…"
+    root.feedNote = Fr.t("feed.reading")
     var write = Feeds.addCommand(feedNameField.text, url, root.feedContext)
     feedWriter.run(write.command, write.input)
   }
@@ -212,7 +213,7 @@ FocusScope {
   function saveKey(text) {
     var key = String(text || "").replace(/\s+/g, "")
     if (key !== "" && !Places.isGoogleKey(key)) {
-      root.keyError = "That is not a Google Maps API key."
+      root.keyError = Fr.t("key.invalid")
       return
     }
     root.keyError = ""
@@ -307,7 +308,7 @@ FocusScope {
     Toggle {
       width: parent.width
       label: "HEY"
-      description: root.sourceNote("hey", "Reads HEY through hey-cli. Run `hey setup` to sign in.")
+      description: root.sourceNote("hey", Fr.t("source.hey_help"))
       checked: root.value("heyEnabled", false) === true
       foreground: root.foreground
       fontFamily: root.fontFamily
@@ -317,8 +318,7 @@ FocusScope {
     Toggle {
       width: parent.width
       label: Fr.t("text.google_agenda")
-      description: root.sourceNote("google", "Reads and writes Google Calendar, signed in through gws, the Google Workspace CLI: "
-        + "install googleworkspace-cli and run `gws auth login -s calendar`.")
+      description: root.sourceNote("google", Fr.t("source.google_help"))
       checked: root.value("googleEnabled", true) !== false
       foreground: root.foreground
       fontFamily: root.fontFamily
@@ -407,7 +407,7 @@ FocusScope {
         id: feedUrlField
         width: Style.space(200)
         password: true
-        placeholderText: "webcal:// or https:// address"
+        placeholderText: Fr.t("feed.address")
         foreground: root.foreground
         font.family: root.fontFamily
         onAccepted: if (text !== "") root.addFeed()
@@ -416,7 +416,7 @@ FocusScope {
 
       Button {
         anchors.verticalCenter: parent.verticalCenter
-        text: "Add"
+        text: Fr.t("action.add")
         bordered: true
         focusable: true
         enabled: feedUrlField.text !== "" && !feedWriter.running
@@ -428,11 +428,9 @@ FocusScope {
     }
 
     Note {
-      text: root.feedError !== "" ? root.feedError
-        : (root.feedNote !== "" ? root.feedNote
-          : "Any calendar published as an .ics address, read only: a Google calendar's secret address in iCal format, "
-            + "an iCloud or Outlook published calendar, holidays. The address works like a password, so it is kept in "
-            + "~/.config/omacal/feeds.json, readable only by you.")
+      text: root.feedError !== "" ? Backend.message(root.feedError)
+        : (root.feedNote !== "" ? Backend.message(root.feedNote)
+          : Fr.t("feed.help"))
       color: root.feedError !== "" ? Commons.Color.urgent : Qt.darker(root.foreground, 1.8)
     }
 
@@ -523,14 +521,14 @@ FocusScope {
     Toggle {
       width: parent.width
       label: Fr.t("text.suggerer_des_lieux")
-      description: "Look up what you type in Where? and offer the places it could mean, as HEY does."
+      description: Fr.t("places.help")
       checked: root.value("placeSuggestions", false) === true
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.save("placeSuggestions", !checked)
     }
 
-    Label { text: "GOOGLE MAPS API KEY" }
+    Label { text: Fr.t("key.heading") }
 
     Row {
       spacing: Style.space(8)
@@ -539,7 +537,7 @@ FocusScope {
         id: placeKeyField
         width: Style.space(220)
         password: true
-        placeholderText: placeKey.provider === "google" ? "Saved" : "None: OpenStreetMap"
+        placeholderText: placeKey.provider === "google" ? Fr.t("key.saved") : Fr.t("key.none")
         foreground: root.foreground
         font.family: root.fontFamily
         onAccepted: if (text !== "") root.saveKey(text)
@@ -548,7 +546,7 @@ FocusScope {
 
       Button {
         anchors.verticalCenter: parent.verticalCenter
-        text: "Save"
+        text: Fr.t("action.save")
         bordered: true
         focusable: true
         enabled: placeKeyField.text !== "" && !keyWriter.running
@@ -572,11 +570,10 @@ FocusScope {
     }
 
     Note {
-      text: root.keyError !== "" ? root.keyError
+      text: root.keyError !== "" ? Backend.message(root.keyError)
         : (placeKey.provider === "google"
-          ? "Places come from Google, which sees what you type in Where?."
-          : "Places come from OpenStreetMap, through Komoot's free Photon server, which sees what you type in Where?. "
-            + "A Google Maps key with the Places API (New) turned on gives Google's, as in HEY.")
+          ? Fr.t("places.google")
+          : Fr.t("places.osm"))
       color: root.keyError !== "" ? Commons.Color.urgent : Qt.darker(root.foreground, 1.8)
     }
 
@@ -685,7 +682,7 @@ FocusScope {
 
     Note {
       text: Fr.t("text.les_calendriers_masques_sont_exclus_de_la_grille_de_la_journee_et")
-        + (root.host ? root.host.modeNote() : "")
+        + (root.host ? Backend.message(root.host.modeNote()) : "")
     }
 
     // ---- Quick add

@@ -50,6 +50,9 @@ avec `python3 tools/build-translations`. `i18n/Fr.js` est l’adaptateur génér
 chargé synchroniquement par QML et les modèles JavaScript. Ne pas le modifier
 à la main. Les messages avec des données utilisent des paramètres `%1`, `%2`.
 Le français reste explicite, indépendamment de la langue du shell.
+Les erreurs connues des backends sont traduites à l’affichage par
+`i18n/Backend.js`, à partir des entrées `backend.*` du même catalogue.
+Les réponses inconnues restent intactes pour conserver leur diagnostic.
 Les mots reconnus par les parseurs de dates, les identifiants techniques et
 les métadonnées du manifeste ne sont pas des traductions d’interface.
 

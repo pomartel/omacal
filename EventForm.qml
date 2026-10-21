@@ -1,4 +1,5 @@
 import "i18n/Fr.js" as Fr
+import "i18n/Backend.js" as Backend
 import QtQuick
 import Quickshell.Io
 import qs.Commons as Commons
@@ -845,7 +846,7 @@ Item {
         width: parent.width
         textFormat: Text.PlainText
         horizontalAlignment: places.error !== "" ? Text.AlignLeft : Text.AlignRight
-        text: places.error !== "" ? places.error
+        text: places.error !== "" ? Backend.message(places.error)
           : (places.provider === "google" ? "Google Maps" : "© OpenStreetMap contributors")
         color: places.error !== "" ? Commons.Color.urgent : Qt.darker(root.foreground, 1.9)
         font.family: root.fontFamily
@@ -914,8 +915,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         focusable: false
         options: root.oneDayEditable
-          ? [{ value: "one", label: "This day" }, { value: "all", label: "Every day" }]
-          : [{ value: "all", label: "Every day" }]
+          ? [{ value: "one", label: Fr.t("repeat.one") }, { value: "all", label: Fr.t("repeat.all") }]
+          : [{ value: "all", label: Fr.t("repeat.all") }]
         value: root.scope
         cursorIndex: scopeRow.activeFocus ? root.scopeValues.indexOf(root.scope) : -1
         foreground: root.foreground
@@ -936,7 +937,7 @@ Item {
         anchors.right: cancelButton.left
         anchors.rightMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        text: root.busy ? (root.editing ? Fr.t("text.enregistrement") : Fr.t("text.ajout")) : (root.localError !== "" ? root.localError : root.error)
+        text: root.busy ? (root.editing ? Fr.t("text.enregistrement") : Fr.t("text.ajout")) : Backend.message(root.localError !== "" ? root.localError : root.error)
         color: root.busy ? Qt.darker(root.foreground, 1.4) : Commons.Color.urgent
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall

@@ -1,4 +1,5 @@
 import "i18n/Fr.js" as Fr
+import "i18n/Backend.js" as Backend
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -502,7 +503,7 @@ BarWidget {
   function modeNote() {
     var notes = []
     for (var i = 0; i < root.activeSources.length; i++) {
-      var note = root.activeSources[i].modeNote()
+      var note = Backend.message(root.activeSources[i].modeNote())
       if (note !== "") notes.push(note)
     }
     return notes.join(" ")

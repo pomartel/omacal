@@ -1,4 +1,5 @@
 import "i18n/Fr.js" as Fr
+import "i18n/Backend.js" as Backend
 import QtQuick
 import Quickshell
 import qs.Commons as Commons
@@ -1292,7 +1293,7 @@ Panel {
                     if (!host) return ""
                     if (host.lastError !== "") return host.lastError
                     if (!host.loaded) return Fr.t("source.loading", host.backendName)
-                    if (host.anySourceReady === false) return "No calendar is set up. Open the settings (S) to add one."
+                    if (host.anySourceReady === false) return Fr.t("calendar.none")
                     return root.selectedIsToday ? Fr.t("text.aucun_evenement_aujourdhui") : Fr.t("text.aucun_evenement_ce_jour_la")
                   }
                   color: root.hostWidget && root.hostWidget.lastError !== ""
@@ -1307,7 +1308,7 @@ Panel {
                   width: parent.width
                   textFormat: Text.PlainText
                   wrapMode: Text.Wrap
-                  text: root.hostWidget ? root.hostWidget.writeError : ""
+                  text: root.hostWidget ? Backend.message(root.hostWidget.writeError) : ""
                   color: Commons.Color.urgent
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.bodySmall
