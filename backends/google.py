@@ -643,26 +643,20 @@ def emit(lines):
     sys.stdout.write(output + "\n")
 
 
-def cache_class():
+def fork_profile(argv):
     import importlib.util
-    spec = importlib.util.spec_from_file_location("omacal_cache", os.path.join(os.path.dirname(__file__), "cache.py"))
+    spec = importlib.util.spec_from_file_location("omacal_google_profile", os.path.join(os.path.dirname(__file__), "google_profile.py"))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.CalendarCache
+    return module.Profile(argv)
 
 
 def main(argv):
-    argv = list(argv)
-    expected = ""
-    if "--account" in argv:
-        at = argv.index("--account")
-        expected = argv[at + 1] if len(argv) > at + 1 else ""
-        del argv[at:at + 2]
+    profile = fork_profile(argv)
+    argv = profile.argv
     action = argv[1] if len(argv) > 1 else ""
-    Cache = cache_class()
-    cache = Cache(expected) if expected else None
     if action == "cache":
-        emit([cache.read() if cache else Cache.empty()])
+        emit([profile.snapshot()])
         return 0
     keys = week_keys(argv[2:]) if action == "weeks" else []
     try:
@@ -670,29 +664,20 @@ def main(argv):
             raise Failure("Calendar for Omarchy does not know that Google action.")
         request = read_request() if action == "write" else None
         google = Google()
-        if expected:
-            primary = next((c["id"] for c in listed_calendars(google) if c.get("primary")), "")
-            if primary.lower() != expected.lower():
-                raise Failure("Le compte Google connecté ne correspond pas au compte configuré.")
+        profile.verify(google, listed_calendars, Failure)
         if action == "probe":
             calendars = listed_calendars(google)
             primary = next((c["id"] for c in calendars if c.get("primary")), "")
             emit([{"ok": True, "account": primary, "calendars": len(calendars)}])
         elif action == "calendars":
-            result = [project_calendar(c) for c in listed_calendars(google)]
-            if cache: cache.save_calendars(result)
-            emit([result])
+            emit([profile.save_calendars([project_calendar(c) for c in listed_calendars(google)])])
         elif action == "weeks":
             if not keys:
                 raise Failure("No weeks to read.")
-            generation = cache.read()["generation"] if cache else 0
-            result = read_weeks(google, keys)
-            if cache: cache.save_weeks(result, generation)
-            emit(result)
+            profile.begin_weeks()
+            emit(profile.save_weeks(read_weeks(google, keys)))
         else:
-            message = write(google, request)
-            if cache: cache.invalidate()
-            emit([{"ok": True, "message": message}])
+            emit([{"ok": True, "message": profile.wrote(write(google, request))}])
         return 0
     except Failure as error:
         if action == "weeks":

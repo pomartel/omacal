@@ -213,6 +213,29 @@ class Failures(unittest.TestCase):
 
 
 class ForkIntegration(unittest.TestCase):
+    def test_write_invalidates_only_after_success(self):
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {"XDG_CACHE_HOME": folder}):
+            args = ["google.py", "write", "--account", "me@example.test"]
+            cache = google.fork_profile(args).cache
+            cache.save_weeks([{"week": "2026-10-19", "events": []}], 0)
+            with patch.object(google, "Google"), patch.object(google, "listed_calendars", return_value=[{"id": "me@example.test", "primary": True}]), patch.object(google, "read_request", return_value={}), patch.object(google, "emit"):
+                with patch.object(google, "write", side_effect=google.Failure("Offline")):
+                    self.assertEqual(google.main(args), 1)
+                self.assertEqual(cache.read()["generation"], 0)
+                self.assertIn("2026-10-19", cache.read()["weeks"])
+                with patch.object(google, "write", return_value="Event updated"):
+                    self.assertEqual(google.main(args), 0)
+                self.assertEqual(cache.read()["generation"], 1)
+                self.assertEqual(cache.read()["weeks"], {})
+
+    def test_late_fetch_cannot_restore_invalidated_weeks(self):
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {"XDG_CACHE_HOME": folder}):
+            profile = google.fork_profile(["google.py", "weeks", "--account", "me@example.test"])
+            profile.begin_weeks()
+            profile.cache.invalidate()
+            profile.save_weeks([{"week": "2026-10-19", "events": [{"id": "deleted"}]}])
+            self.assertEqual(profile.snapshot()["weeks"], {})
+
     def test_wrong_account_is_rejected_before_writing(self):
         with patch.object(google, "Google"), patch.object(google, "listed_calendars", return_value=[{"id": "other@example.test", "primary": True}]), patch.object(google, "read_request", return_value={}), patch.object(google, "write") as write, patch.object(google, "emit") as emit:
             self.assertEqual(google.main(["google.py", "write", "--account", "wanted@example.test"]), 1)

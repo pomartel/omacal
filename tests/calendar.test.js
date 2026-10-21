@@ -540,6 +540,8 @@ test("native fields preserve French input methods", function() {
   assert.ok(/UI\.TextField\s*\{/.test(source))
   assert.ok(source.includes("inputMethodComposing"))
   assert.strictEqual(Hey.parseDay("demain", "2026-10-21"), "2026-10-22")
+  assert.strictEqual(Hey.parseDay("3 mai", "2026-10-21"), "2027-05-03")
+  assert.strictEqual(Hey.parseDay("May 3", "2026-10-21"), "2027-05-03")
   assert.strictEqual(Hey.parseDay("février 3 2027", "2026-10-21"), "2027-02-03")
 })
 

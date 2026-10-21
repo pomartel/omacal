@@ -445,7 +445,7 @@ var repeatSteps = {
   "every_year": { months: 12 }
 }
 
-var MONTH_NAMES = ["january", "february", "march", "april", "mai", "june", "july",
+var MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july",
   "august", "september", "october", "november", "december"]
 
 function repeatStep(event) {
