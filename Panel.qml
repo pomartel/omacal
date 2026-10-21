@@ -291,7 +291,7 @@ Panel {
   // "MON 28": HEY's day heading, in English like the rest of the grid.
   function dayHeading(key) {
     var date = Cal.dateFromKey(key)
-    return root.weekdayLabel(date.getDay()) + " " + date.getDate()
+    return root.weekdayLabel(date.getDay()) + " " + date.toLocaleDateString(root.labelLocale, "d MMMM").toUpperCase()
   }
 
   function dayTooltip(dayEvents, key) {
@@ -1153,13 +1153,12 @@ Panel {
                 Text {
                   anchors.left: dayPill.right
                   anchors.leftMargin: Style.space(8)
+                  anchors.right: dayActions.left
+                  anchors.rightMargin: Style.space(8)
                   anchors.verticalCenter: parent.verticalCenter
                   textFormat: Text.PlainText
-                  text: {
-                    var label = Cal.relativeDayLabel(root.selectedKey, root.todayKey)
-                    var date = Cal.dateFromKey(root.selectedKey)
-                    return root.selectedIsToday ? label : label + " · " + date.toLocaleDateString(root.labelLocale, "d MMMM")
-                  }
+                  text: Cal.relativeDayLabel(root.selectedKey, root.todayKey)
+                  elide: Text.ElideRight
                   color: Qt.darker(root.contentForeground, 1.5)
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.bodySmall
