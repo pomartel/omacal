@@ -1,17 +1,29 @@
 #!/usr/bin/env bash
-# Requires an installed Omarchy shell and Quickshell. Uses only an offline gws fixture.
+# Requires an installed Omarchy shell and Quickshell. All Google traffic stays local.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+server_pid=
+cleanup() { if [[ -n "$server_pid" ]]; then kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true; fi; rm -rf "$work"; }
+trap cleanup EXIT
+export OMACAL_FIXTURE_DIR="$work" XDG_CACHE_HOME="$work/cache" XDG_CONFIG_HOME="$work/config"
+export PATH="$repo/tests/fixtures:$PATH" OMACAL_TEST_LOOPBACK=1
+unset GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE GOOGLE_WORKSPACE_CLI_CONFIG_DIR
+mkdir -p "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME"
+/usr/bin/python3 "$repo/tests/fixtures/google-server.py" >"$work/server.log" 2>&1 &
+server_pid=$!
+for _ in {1..100}; do [[ -s "$work/port" ]] && break; kill -0 "$server_pid" 2>/dev/null || { cat "$work/server.log"; exit 1; }; sleep 0.05; done
+[[ -s "$work/port" ]] || { echo 'Fixture server did not start'; exit 1; }
+export OMACAL_GOOGLE_API="http://127.0.0.1:$(cat "$work/port")"
+export OMACAL_GOOGLE_TOKEN_URL="$OMACAL_GOOGLE_API/token"
 shell_dir=${OMARCHY_PATH:-/usr/share/omarchy}/shell
 ln -s "$shell_dir/Commons" "$work/Commons"
 ln -s "$shell_dir/Ui" "$work/Ui"
 ln -s "$repo" "$work/plugin"
 cp "$repo/tests/qml-smoke.qml" "$work/shell.qml"
 seed_cache() {
-  XDG_CACHE_HOME="$work/cache" PATH="$repo/tests/fixtures:$PATH" python3 "$repo/backends/google.py" calendars calendar@example.test >/dev/null
-  XDG_CACHE_HOME="$work/cache" PATH="$repo/tests/fixtures:$PATH" python3 "$repo/backends/google.py" events calendar@example.test '["2020-01-06"]' >/dev/null
+  /usr/bin/python3 -I "$repo/backends/google.py" calendars --account calendar@example.test >/dev/null
+  /usr/bin/python3 -I "$repo/backends/google.py" weeks 2020-01-06 --account calendar@example.test >/dev/null
 }
 seed_cache
 XDG_CACHE_HOME="$work/cache" QT_QPA_PLATFORM=wayland PATH="$repo/tests/fixtures:$PATH" timeout 30 quickshell -p "$work" --no-color >"$work/log" 2>&1 || { cat "$work/log"; exit 1; }
@@ -30,9 +42,10 @@ grep 'OMACAL_CACHE_SMOKE_OK' "$work/offline-log"
 # Slow deletion: repeated confirmation is ignored; failed deletion remains retryable.
 cp "$repo/tests/qml-delete.qml" "$work/shell.qml"
 for fail in 0 1; do
-  rm -f "$work/cache/delete-calls"
+  rm -f "$work/delete-calls" "$work/delete-fail"
+  [[ "$fail" == 0 ]] || touch "$work/delete-fail"
   XDG_CACHE_HOME="$work/cache" OMACAL_FIXTURE_DELETE_FAIL="$fail" QT_QPA_PLATFORM=wayland PATH="$repo/tests/fixtures:$PATH" timeout 15 quickshell -p "$work" --no-color >"$work/delete-log" 2>&1 || { cat "$work/delete-log"; exit 1; }
   if grep -E 'TypeError|ReferenceError|SyntaxError|Error:|is not a function|is not defined|Failed to load' "$work/delete-log"; then exit 1; fi
-  [[ $(wc -l < "$work/cache/delete-calls") == 1 ]]
+  [[ $(wc -l < "$work/delete-calls") == 1 ]]
   grep 'OMACAL_DELETE_SMOKE_OK' "$work/delete-log"
 done

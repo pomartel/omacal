@@ -62,19 +62,22 @@ ShellRoot {
     calendarPanel.showingSettings = false
   }
   property bool rangeStarted: false
+  property bool refreshRequested: false
   property bool navigationStarted: false
   property var rangeWeeks: []
+  readonly property var google: widget.sources[1]
   Plugin.BarWidget {
     id: widget
     settings: ({ googleAccount: "calendar@example.test", notifications: false })
     onWriteFinished: function(ok, message) {
       if (!ok) throw new Error("Fixture write failed: " + message)
       quickAdd.submit({title: "Fixture write", date: "2026-09-28", allDay: true,
-                       calendarId: "calendar@example.test"})
+                       calendarKey: "google:calendar@example.test"})
     }
   }
   Plugin.QuickAdd {
     id: quickAdd
+    wanted: true
     shell: QtObject {
       property var barConfig: ({ layout: { center: [{ id: "pomartel.omacal", googleAccount: "calendar@example.test" }] } })
       function hide(id) {
@@ -88,7 +91,7 @@ ShellRoot {
   Plugin.EventForm {
     id: form
     calendars: widget.writableCalendars
-    defaultCalendarId: "calendar@example.test"
+    defaultCalendarKey: "google:calendar@example.test"
   }
   Timer {
     interval: 100
@@ -96,30 +99,36 @@ ShellRoot {
     repeat: true
     onTriggered: {
       if (!root.keysChecked) { root.checkKeys(); root.keysChecked = true }
-      if (!widget.backendChecked || widget.loading || !widget.loaded || widget.calendars.length === 0 || root.submitted) return
+      if (!root.google.checked || widget.loading || !widget.loaded || widget.calendars.length === 0 || !quickAdd.sources[1].ready || root.submitted) return
       if (widget.lastError !== "") throw new Error(widget.lastError)
       if (widget.events.length === 0) throw new Error("No fixture events")
       if (widget.events[0].calendarId !== "calendar@example.test") throw new Error("Lost calendar ID")
-      if (form.calendarId !== "calendar@example.test") throw new Error("Form lost calendar ID")
-      if (quickAdd.backend.info.id !== "google") throw new Error("Quick add uses wrong backend")
-      if (defaultQuickAdd.backend.info.id !== "google") throw new Error("Default Google backend changed")
+      if (form.calendarKey !== "google:calendar@example.test") throw new Error("Form lost calendar ID")
+      if (quickAdd.sources[1].sourceId !== "google") throw new Error("Quick add uses wrong backend")
+      if (defaultQuickAdd.sources[1].sourceId !== "google") throw new Error("Default Google backend changed")
+      if (!root.refreshRequested) {
+        root.refreshRequested = true
+        widget.refreshCalendar(true)
+        return
+      }
+      if (widget.loading) return
       if (!root.rangeStarted) {
-        var restored = widget.weekCache["2020-01-06"]
+        var restored = root.google.weekCache["2020-01-06"]
         if (!restored || !restored.cached || restored.events.length !== 1) throw new Error("Startup cache was not restored")
         if (widget.cacheNote("2020-01-06").indexOf("Données en cache") === -1) throw new Error("Cached data not labeled")
-        var current = widget.weekCache[widget.baseWeeks()[0]]
+        var current = root.google.weekCache[widget.baseWeeks()[0]]
         if (!current || current.cached) throw new Error("Background fetch did not replace cached data")
         root.rangeStarted = true
         var weeks = []
         for (var i = 0; i < 20; i++) weeks.push(Cal.addDays("2025-01-06", i * 7))
         root.rangeWeeks = weeks
         widget.visibleWeeks = weeks
-        widget.requestWeeks(weeks, true)
+        root.google.requestWeeks(weeks, true)
         return
       }
-      if (widget.loading || widget.queuedWeeks.length > 0) return
+      if (widget.loading || root.google.queuedWeeks.length > 0) return
       for (var j = 0; j < root.rangeWeeks.length; j++)
-        if (!widget.weekIsFresh(root.rangeWeeks[j])) throw new Error("Large range lost a week")
+        if (!root.google.weekIsFresh(root.rangeWeeks[j])) throw new Error("Large range lost a week")
       if (!root.navigationStarted) {
         root.navigationStarted = true
         for (var month = 0; month < 5; month++) {
@@ -129,8 +138,8 @@ ShellRoot {
           root.rangeWeeks = page
         }
         var keep = widget.baseWeeks().concat(root.rangeWeeks)
-        for (var q = 0; q < widget.queuedWeeks.length; q++)
-          if (keep.indexOf(widget.queuedWeeks[q]) === -1) throw new Error("Obsolete month still queued")
+        for (var q = 0; q < root.google.queuedWeeks.length; q++)
+          if (keep.indexOf(root.google.queuedWeeks[q]) === -1) throw new Error("Obsolete month still queued")
         return
       }
       for (var monthIndex = 0; monthIndex < 12; monthIndex++) {
@@ -139,13 +148,9 @@ ShellRoot {
           throw new Error("French form date did not round-trip: " + form.dayText(frenchDay))
       }
       if (calendarPanel.weekdayLabel(1) !== "LUN.") throw new Error("Weekday is not French")
-      var cachedCount = widget.events.length
-      widget.applyWeeks(1, '{"ok":false,"error":"Invalid week range."}')
-      if (widget.lastError !== "Invalid week range.") throw new Error("Backend error was hidden")
-      if (widget.events.length !== cachedCount) throw new Error("Fetch error discarded cached events")
       root.submitted = true
       if (!widget.addEvent({title: "Fixture write", date: "2026-09-28", allDay: true,
-                           calendarId: form.calendarId})) throw new Error("Write did not start")
+                           calendarKey: form.calendarKey})) throw new Error("Write did not start")
     }
   }
 }

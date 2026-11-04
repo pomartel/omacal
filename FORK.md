@@ -12,6 +12,8 @@ et l’identifiant installé reste `pomartel.omacal`.
 Les données HEY sont filtrées avant leur stockage temporaire et avant leur
 transmission au shell. Les liens affichent leur domaine et les rappels utilisent
 un répertoire privé ainsi que du texte échappé.
+Hors ligne, les noms des calendriers Google restent visibles depuis le cache,
+mais leurs événements ne peuvent pas être modifiés avant la reconnexion.
 Installez `googleworkspace-cli`, puis connectez le compte avec
 `gws auth login -s calendar`. Dans les réglages du plugin, indiquez ce même
 compte dans `googleAccount`.

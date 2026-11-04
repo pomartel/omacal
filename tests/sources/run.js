@@ -51,7 +51,9 @@ const server = http.createServer(async (req, res) => {
       assert.equal(new URLSearchParams(body).get('refresh_token'), 'synthetic-refresh')
       return send(200, { access_token: 'synthetic-access', expires_in: 3600 })
     }
-    assert.equal(req.headers.authorization, 'Bearer synthetic-access')
+    if (!url.pathname.startsWith('/users/me/calendarList') && !url.pathname.startsWith('/calendars/'))
+      return send(404, { error: { code: 404 } })
+    assert.equal(req.headers.authorization, 'Bearer synthetic-access', `authorization for ${req.method} ${url.pathname}`)
     let match
     if (url.pathname === '/users/me/calendarList') return send(200, { items: calendars })
     if ((match = /^\/users\/me\/calendarList\/([^/]+)$/.exec(url.pathname))) {
@@ -80,7 +82,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'DELETE') { stored.delete(id); res.writeHead(204); res.end(); return }
     }
     send(404, { error: { code: 404 } })
-  } catch (error) { failure = failure || error; res.writeHead(500); res.end('{}') }
+  } catch (error) { failure = failure || error; console.error(error.message); res.writeHead(500); res.end('{}') }
 })
 
 server.listen(0, '127.0.0.1', async () => {
@@ -111,9 +113,12 @@ echo '{"type":"authorized_user","client_id":"synthetic-client","client_secret":"
     const runtime = path.join(scratch, 'runtime')
     fs.mkdirSync(runtime, { mode: 0o700 })
 
-    const child = spawn('quickshell', ['-p', scratch, '--no-color'], { env: { ...process.env,
-      PATH: bin + ':' + process.env.PATH, QT_QPA_PLATFORM: 'offscreen', XDG_CONFIG_HOME: config, XDG_RUNTIME_DIR: runtime,
-      OMACAL_GOOGLE_API: base, OMACAL_GOOGLE_TOKEN_URL: base + '/token', OMACAL_TEST_LOOPBACK: '1', TZ: 'Europe/Berlin' } })
+    const env = { ...process.env, PATH: bin + ':' + process.env.PATH, QT_QPA_PLATFORM: 'offscreen',
+      XDG_CONFIG_HOME: config, XDG_CACHE_HOME: path.join(scratch, 'cache'), XDG_RUNTIME_DIR: runtime,
+      OMACAL_GOOGLE_API: base, OMACAL_GOOGLE_TOKEN_URL: base + '/token', OMACAL_TEST_LOOPBACK: '1', TZ: 'Europe/Berlin' }
+    delete env.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE
+    delete env.GOOGLE_WORKSPACE_CLI_CONFIG_DIR
+    const child = spawn('quickshell', ['-p', scratch, '--no-color'], { env })
     let output = ''
     child.stdout.on('data', data => { output += data })
     child.stderr.on('data', data => { output += data })

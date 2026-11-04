@@ -280,6 +280,7 @@ Item {
 
     Button {
       id: confirmDelete
+      objectName: "confirmDelete"
       anchors.verticalCenter: parent.verticalCenter
       text: Fr.t("text.supprimer")
       enabled: !root.busy

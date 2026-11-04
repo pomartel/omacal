@@ -276,7 +276,8 @@ BarWidget {
       if (source.ready) anyReady = true
       if (!source.loaded) allLoaded = false
       all = all.concat(source.mergedEvents())
-      if (source.ready) lists.push({ name: source.name, calendars: source.calendars })
+      if (source.ready || (source.sourceId === "google" && source.cacheLoaded))
+        lists.push({ name: source.name, calendars: source.calendars })
     }
     // A source with nothing set up (no feeds) has nothing to say, and HEY,
     // on by default, says its CLI is missing only when nothing else answers.
@@ -294,7 +295,7 @@ BarWidget {
     // The calendars a new event can go on, labelled as in the full list.
     root.writableCalendars = Cal.writableCalendars(root.calendars.filter(function(c) {
       var from = sourceById(c.source)
-      return !!from && from.capabilities.create === true
+      return !!from && from.ready && from.capabilities.create === true
     }))
     root.lastError = errors.join("\n")
     root.loaded = allLoaded || anyReady
