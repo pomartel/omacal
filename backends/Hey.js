@@ -140,6 +140,10 @@ var eventProjection = "map({"
 // one. Each writes its own file, so a large week can never interleave with
 // another on the pipe, and the results come back one JSON line per week.
 //
+// That file is already the projection: HEY's answer holds notes, guests and
+// journal text, which never reach the disk. So the read back does not
+// project again, which would also lose the calendar's name.
+//
 // A week that failed is reported as failed rather than as empty. An empty
 // answer is the shape every failure takes with the CLI (missing, signed
 // out, offline), and drawing it as a clear week would be a lie.
@@ -152,12 +156,14 @@ var weekScript = [
   "filter=$1; shift",
   "for d in \"$@\"; do",
   "  (timeout -k " + cliKillGraceSeconds + " " + cliTimeoutSeconds
-    + " hey event week \"$d\" --json --all > \"$dir/$d\" 2>/dev/null) &",
+    + " hey event week \"$d\" --json --all 2>/dev/null"
+    + " | jq -c \"if .ok == true then {ok: true, data: (.data | $filter)} else {ok: false} end\""
+    + " > \"$dir/$d\" 2>/dev/null) &",
   "done",
   "wait",
   "for d in \"$@\"; do",
   "  if jq -e '.ok == true' \"$dir/$d\" >/dev/null 2>&1; then",
-  "    jq -c --arg w \"$d\" \"{week: \\$w, events: (.data | $filter)}\" \"$dir/$d\" 2>/dev/null"
+  "    jq -c --arg w \"$d\" '{week: $w, events: .data}' \"$dir/$d\" 2>/dev/null"
     + " || printf '{\"week\":\"%s\",\"error\":true}\\n' \"$d\"",
   "  else",
   "    printf '{\"week\":\"%s\",\"error\":true}\\n' \"$d\"",
@@ -214,8 +220,18 @@ var calendarsCommand = ["bash", "-c",
 // Calendar changes as HEY makes them, one JSON line each; any line but the
 // watch's own "ready" and "disconnected" means something changed. Mail is
 // left out: naming only calendar changes switches the mail side off.
-var watchCommand = ["hey", "watch", "--events",
-  "recording_added,recording_updated,recording_deleted,calendar_added,calendar_updated,calendar_deleted,calendar_resync"]
+//
+// HEY's line carries the whole recording: notes, guests, journal text. All
+// the shell needs is that something changed, so jq keeps the change's name
+// and drops the rest, along with any line it cannot read. hey is exec'd
+// with jq behind a process substitution, not a pipe: the shell stops the
+// process it started, and bash stopped in front of a pipe would leave `hey
+// watch` running on its own.
+var watchScript = "exec hey watch --events"
+  + " recording_added,recording_updated,recording_deleted,calendar_added,calendar_updated,calendar_deleted,calendar_resync"
+  + " > >(exec jq -c --unbuffered -R 'fromjson? | select(type == \"object\") | {change}' 2>/dev/null)"
+
+var watchCommand = ["bash", "-c", watchScript, "omacal"]
 
 function isWatchChange(line) {
   var text = String(line || "")

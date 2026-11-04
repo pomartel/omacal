@@ -25,6 +25,72 @@ test('a calendar HEY subscribes to elsewhere is not one to add events to', () =>
   } finally { fs.rmSync(dir, { recursive: true, force: true }) }
 })
 
+// A pretend CLI on PATH, for tests that run a backend's real command line.
+function withFakeTools(tools, fn) {
+  const os = require('node:os'), fs = require('node:fs'), path = require('node:path')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omacal-fake-'))
+  try {
+    for (const name in tools) fs.writeFileSync(path.join(dir, name), tools[name], { mode: 0o700 })
+    return fn(dir, { ...process.env, PATH: dir + ':' + process.env.PATH })
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+}
+
+test('the shell gets the name of a watch change, never the recording', () => {
+  const recording = JSON.stringify({ change: 'recording_updated', at: 'now', calendar: { id: 7, name: privateText }, recording_id: 9,
+    recording_type: 'Calendar::Event', recording: { title: privateText, notes: privateText, guests: [privateText] } })
+  const lines = ['{"change":"ready","at":"now"}', recording, 'not json ' + privateText, '["' + privateText + '"]', '{"change":"disconnected","at":"now"}']
+  const fakeHey = "#!/bin/bash\ncat <<'EOF'\n" + lines.join('\n') + '\nEOF\n'
+  withFakeTools({ hey: fakeHey }, (dir, env) => {
+    const run = spawnSync(Hey.watchCommand[0], Hey.watchCommand.slice(1), { env, encoding: 'utf8' })
+    assert.equal(run.status, 0)
+    assert.ok(!run.stdout.includes(privateText))
+    const shown = run.stdout.trim().split('\n')
+    assert.deepEqual(shown, ['{"change":"ready"}', '{"change":"recording_updated"}', '{"change":"disconnected"}'])
+    assert.deepEqual(shown.map(Hey.isWatchChange), [false, true, false])
+  })
+})
+
+test('the process the shell starts for the watch is hey itself, so stopping it stops hey', () => {
+  const fakeHey = '#!/bin/bash\necho $$ > "$HEY_PID_FILE"\nexec sleep 30\n'
+  const script = `
+    "$@" & watch=$!
+    for i in $(seq 100); do [ -s "$HEY_PID_FILE" ] && break; sleep 0.05; done
+    [ "$(cat "$HEY_PID_FILE")" = "$watch" ] || exit 2
+    kill -TERM "$watch"`
+  withFakeTools({ hey: fakeHey }, (dir, env) => {
+    env.HEY_PID_FILE = dir + '/pid'
+    const run = spawnSync('bash', ['-c', script, 'test', ...Hey.watchCommand], { env, encoding: 'utf8' })
+    assert.equal(run.status, 0, 'hey would outlive the process the shell stops')
+  })
+})
+
+test('a week is projected before it reaches the disk', () => {
+  const answer = JSON.stringify({ ok: true, data: [{ id: 1, title: 'Standup', starts_at: '2026-09-28T09:00:00Z', ends_at: '2026-09-28T09:15:00Z',
+    calendar: { id: 7, name: 'Work' }, notes: privateText, guests: [privateText] }] })
+  const tools = {
+    hey: "#!/bin/bash\ncase \"$3\" in 2026-10-05) echo '{\"ok\":false}';; 2026-10-12) exit 1;; 2026-10-19) echo 'not json';; *) cat <<'EOF'\n" + answer + '\nEOF\n;; esac\n',
+    // The script's temporary directory, left behind to be looked at.
+    mktemp: '#!/bin/bash\nmkdir -p "$KEPT" && echo "$KEPT"\n',
+    rm: '#!/bin/bash\nexit 0\n'
+  }
+  withFakeTools(tools, (dir, env) => {
+    env.KEPT = dir + '/week'
+    const weeks = ['2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19']
+    const command = Hey.weekCommand(weeks)
+    const run = spawnSync(command[0], command.slice(1), { env, encoding: 'utf8' })
+    const lines = run.stdout.trim().split('\n').map(line => JSON.parse(line))
+    assert.equal(lines[0].week, '2026-09-28')
+    assert.equal(lines[0].events[0].title, 'Standup')
+    assert.equal(lines[0].events[0].calendar, 'Work')
+    assert.deepEqual(lines.slice(1), weeks.slice(1).map(week => ({ week, error: true })))
+    assert.ok(!run.stdout.includes(privateText))
+    const fs = require('node:fs')
+    const written = fs.readFileSync(env.KEPT + '/2026-09-28', 'utf8')
+    assert.ok(written.includes('Standup'))
+    assert.ok(!written.includes(privateText))
+  })
+})
+
 test('Google writes carry what was typed on stdin, never in the command', () => {
   const create = Google.writeCommand('create', { title: privateText, location: privateText, date: '2026-10-19' }, context)
   assert.ok(!create.command.join('\n').includes(privateText))

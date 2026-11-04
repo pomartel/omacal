@@ -214,7 +214,7 @@ Item {
 
       PanelToolTip {
         visible: joinMouse.containsMouse
-        text: root.event && root.event.joinTitle !== "" ? root.event.joinTitle : Fr.t("event.join")
+        text: root.event ? Cal.withHost(root.event.joinTitle !== "" ? root.event.joinTitle : Fr.t("event.join"), root.event.joinUrl) : ""
         fontFamily: root.fontFamily
       }
     }

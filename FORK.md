@@ -9,6 +9,9 @@ Cette fiche prévaut pour les différences ci-dessous.
 
 Le dépôt est `https://github.com/pomartel/omacal.git`, branche `google-calendar`,
 et l’identifiant installé reste `pomartel.omacal`.
+Les données HEY sont filtrées avant leur stockage temporaire et avant leur
+transmission au shell. Les liens affichent leur domaine et les rappels utilisent
+un répertoire privé ainsi que du texte échappé.
 Installez `googleworkspace-cli`, puis connectez le compte avec
 `gws auth login -s calendar`. Dans les réglages du plugin, indiquez ce même
 compte dans `googleAccount`.

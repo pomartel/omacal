@@ -441,6 +441,7 @@ Item {
         Button {
           visible: !!root.editing && root.editing.joinUrl !== ""
           text: root.editing && root.editing.joinTitle !== "" ? root.editing.joinTitle : Fr.t("text.rejoindre")
+          tooltipText: root.editing ? Cal.urlHost(root.editing.joinUrl) : ""
           iconText: "󰍫"
           foreground: root.foreground
           accent: root.accent
@@ -451,6 +452,7 @@ Item {
         Button {
           visible: !!root.editing && root.editing.url !== ""
           text: Fr.t("event.open_in", root.serviceName)
+          tooltipText: root.editing ? Cal.urlHost(root.editing.url) : ""
           iconText: "󰏌"
           foreground: root.foreground
           accent: root.accent

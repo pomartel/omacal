@@ -55,11 +55,38 @@ function boundedString(value, limit) {
   return text.length > limit ? text.substr(0, limit) : text
 }
 
+// What sits between https:// and the path, query or fragment.
+function urlAuthority(url) {
+  return url.slice("https://".length).split(/[\/?#]/)[0]
+}
+
 // Only ever handed to a browser launcher, so anything that is not plainly a
-// web URL is dropped rather than passed along.
+// web URL is dropped rather than passed along. So is a link with a username
+// in it (https://meet.google.com@evil.example/): the host is what a person
+// can check, and everything before the @ exists to pass for one.
 function safeUrl(value) {
   var text = boundedString(value, 2048).replace(/^\s+|\s+$/g, "")
-  return /^https:\/\/[^\s"'<>\\]+$/.test(text) ? text : ""
+  if (!/^https:\/\/[^\s"'<>\\]+$/.test(text)) return ""
+  var authority = urlAuthority(text)
+  return authority !== "" && authority.indexOf("@") === -1 ? text : ""
+}
+
+// The host a link opens, to show beside it, or "". A long one keeps its end,
+// which is the part that says whose it is: elided the usual way,
+// meet.google.com.evil.example would read as Google.
+var maximumHostLength = 32
+
+function urlHost(value) {
+  var url = safeUrl(value)
+  if (url === "") return ""
+  var host = urlAuthority(url).replace(/:\d+$/, "").toLowerCase()
+  return host.length > maximumHostLength ? "…" + host.slice(1 - maximumHostLength) : host
+}
+
+// A tooltip's label, followed by the host its link opens.
+function withHost(label, url) {
+  var host = urlHost(url)
+  return host === "" ? label : label + " · " + host
 }
 
 // A file:// URL (Qt.resolvedUrl's) as the path it names.
@@ -1099,6 +1126,10 @@ function reminderLead(event, nowMs) {
 
 function notificationBody(event, nowMs, hour24) {
   var lines = [reminderLead(event, nowMs) + " · " + eventRangeLabel(event, hour24)]
+  // A meeting link is whoever sent the invitation's. It goes second because
+  // a collapsed toast shows two lines.
+  var host = urlHost(event.joinUrl)
+  if (host !== "") lines.push(host)
   if (event.calendar !== "") lines.push(event.calendar)
   if (event.location !== "") lines.push(event.location)
   return lines.join("\n")
@@ -1115,10 +1146,16 @@ function notificationBody(event, nowMs, hour24) {
 // The system Python, because it has PyGObject on Omarchy and a mise or
 // virtualenv one first on PATH may not.
 //
+// The body is markup to a notification daemon, so it is escaped, or a place
+// like "AT&T <HQ>" reads as tags. The summary is plain text and is not.
+//
 // Every monitor's bar runs its own widget, and each would send the same
 // reminder. The first to create the reminder's marker directory claims it
 // (mkdir either creates or fails, atomically); the rest stay quiet. Markers
-// live in the runtime directory and are swept after two days.
+// live in the runtime directory, private to this user, and are swept after
+// two days. There is no shared fallback like /tmp, where another user could
+// claim a reminder first or put a link in place of the icon: without the
+// runtime directory the reminder is skipped.
 //
 // The icon is a small calendar page in the event's calendar colour with its
 // day on it, written once per colour and day next to the markers.
@@ -1126,7 +1163,11 @@ var notifyScript = [
   "import os, shutil, sys, time",
   "from gi.repository import Gio, GLib",
   "env = {k: os.environ.pop('OMACAL_' + k, '') for k in ('TITLE', 'BODY', 'LINK', 'MARKER', 'ICON', 'SVG')}",
-  "base = os.path.join(os.environ.get('XDG_RUNTIME_DIR') or '/tmp', 'omacal')",
+  "runtime = os.environ.get('XDG_RUNTIME_DIR', '')",
+  "if not runtime.startswith('/'):",
+  "    sys.exit(0)",
+  "os.umask(0o077)",
+  "base = os.path.join(runtime, 'omacal')",
   "shown = os.path.join(base, 'shown')",
   "try:",
   "    os.makedirs(shown, exist_ok=True)",
@@ -1162,6 +1203,10 @@ var notifyScript = [
   "loop.run()"
 ].join("\n")
 
+function escapeMarkup(value) {
+  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+}
+
 // A calendar page: the calendar's colour, a darker band with two rings,
 // and the day of the month in the calendar ink.
 function notificationIcon(color, day) {
@@ -1194,7 +1239,7 @@ function notifyCommand(event, nowMs, hour24, fallbackLink, remindMs) {
     command: ["/usr/bin/python3", "-c", notifyScript],
     environment: {
       OMACAL_TITLE: String(event.title || ""),
-      OMACAL_BODY: notificationBody(event, nowMs, hour24),
+      OMACAL_BODY: escapeMarkup(notificationBody(event, nowMs, hour24)),
       OMACAL_LINK: link || "",
       OMACAL_MARKER: reminderMarker(reminderKey(event, remindMs === undefined ? nowMs : remindMs)),
       OMACAL_ICON: "icon-" + color + "-" + day + ".svg",
@@ -1740,6 +1785,8 @@ if (typeof module !== "undefined") {
     isDayKey: isDayKey,
     boundedString: boundedString,
     safeUrl: safeUrl,
+    urlHost: urlHost,
+    withHost: withHost,
     localPath: localPath,
     parseInstant: parseInstant,
     normalizeEvent: normalizeEvent,

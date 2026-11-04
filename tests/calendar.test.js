@@ -137,6 +137,40 @@ test("unsafe links are dropped", function() {
   assert.strictEqual(Hey.safeUrl("https://meet.example.com/x"), "https://meet.example.com/x")
 })
 
+test("a link with a username in it is dropped, and an @ further on is not", function() {
+  assert.strictEqual(Hey.safeUrl("https://meet.google.com@evil.example/x"), "")
+  assert.strictEqual(Hey.safeUrl("https://user:pass@evil.example"), "")
+  assert.strictEqual(Hey.safeUrl("https://a;@evil.example/"), "")
+  assert.strictEqual(Hey.safeUrl("https:///x"), "")
+  assert.strictEqual(Hey.safeUrl("https://meet.example.com/a@b"), "https://meet.example.com/a@b")
+  assert.strictEqual(Hey.safeUrl("https://meet.example.com?who=a@b"), "https://meet.example.com?who=a@b")
+  assert.strictEqual(Hey.safeUrl("https://evil.example#a@b"), "https://evil.example#a@b")
+  var google = "https://calendar.google.com/calendar/r/day/2026/10/19?authuser=me@example.com"
+  assert.strictEqual(Hey.safeUrl(google), google)
+})
+
+test("a link's host is named without its port, and a long one keeps its end", function() {
+  assert.strictEqual(Hey.urlHost("https://Meet.Example.com:8443/abc"), "meet.example.com")
+  assert.strictEqual(Hey.urlHost("https://[::1]:8443/abc"), "[::1]")
+  assert.strictEqual(Hey.urlHost("https://user@meet.example.com/x"), "")
+  assert.strictEqual(Hey.urlHost(""), "")
+  var long = Hey.urlHost("https://meet.google.com.account-verify-session-7f3a.evil.example/x")
+  assert.strictEqual(long.length, 32)
+  assert.ok(/^….*\.evil\.example$/.test(long), long)
+  assert.strictEqual(Hey.withHost("Join", "https://meet.example.com/x"), "Join · meet.example.com")
+  assert.strictEqual(Hey.withHost("Join", ""), "Join")
+})
+
+test("a reminder names a meeting link's host where a collapsed toast shows it", function() {
+  var e = Hey.normalizeEvent({ id: 9, title: "Sync", starts_at: "2026-09-29T09:30:00Z", ends_at: "2026-09-29T10:00:00Z",
+    calendar: "Work", location: "Room 1", join_url: "https://meet.example.com/abc", url: "https://app.hey.com/e/9" })
+  var lines = Hey.notifyCommand(e, e.startMs - 15 * 60000, true, "").environment.OMACAL_BODY.split("\n")
+  assert.strictEqual(lines[1], "meet.example.com")
+  assert.deepStrictEqual(lines.slice(2), ["Work", "Room 1"])
+  e = Hey.normalizeEvent({ id: 9, title: "Sync", starts_at: "2026-09-29T09:30:00Z", calendar: "Work", url: "https://app.hey.com/e/9" })
+  assert.strictEqual(Hey.notifyCommand(e, e.startMs - 15 * 60000, true, "").environment.OMACAL_BODY.split("\n")[1], "Work")
+})
+
 test("hidden calendars are matched by name, case-insensitively", function() {
   var events = [timed(1, "A", 2026, 9, 28, 9, 0, 30), timed(2, "B", 2026, 9, 28, 10, 0, 30, { calendar: "Todoist" })]
   var hidden = Hey.parseHiddenCalendars("todoist, ")
@@ -316,6 +350,20 @@ test("a reminder keeps the event's details off the command line", function() {
   assert.strictEqual(cmd.environment.OMACAL_TITLE, "Doctor appointment")
   assert.ok(cmd.environment.OMACAL_BODY.indexOf("12 Secret Street") !== -1)
   assert.strictEqual(cmd.environment.OMACAL_LINK, "https://meet.example.com/abc-defg-hij")
+})
+
+test("a reminder's body is escaped as markup and its title is left as written", function() {
+  var e = Hey.normalizeEvent({ id: 9, title: "1 < 2 & <b>", starts_at: "2026-09-29T09:30:00Z",
+    ends_at: "2026-09-29T10:00:00Z", location: "AT&T <HQ>", reminders: ["2026-09-29T09:15:00Z"] })
+  var env = Hey.notifyCommand(e, e.startMs - 15 * 60000, true, "", e.reminders[0]).environment
+  assert.strictEqual(env.OMACAL_TITLE, "1 < 2 & <b>")
+  assert.ok(env.OMACAL_BODY.indexOf("AT&amp;T &lt;HQ&gt;") !== -1)
+  assert.ok(env.OMACAL_BODY.indexOf("\n") !== -1, "lines stay lines")
+})
+
+test("reminders keep their files in the runtime directory, never in /tmp", function() {
+  assert.strictEqual(Hey.notifyCommand(Hey.normalizeEvent({ id: 1, starts_at: "2026-09-29T09:30:00Z" }), 0, true).command[2].indexOf("/tmp"), -1)
+  assert.ok(Hey.notifyCommand(Hey.normalizeEvent({ id: 1, starts_at: "2026-09-29T09:30:00Z" }), 0, true).command[2].indexOf("runtime.startswith('/')") !== -1)
 })
 
 test("declined events never notify", function() {
