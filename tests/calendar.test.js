@@ -366,6 +366,23 @@ test("reminders keep their files in the runtime directory, never in /tmp", funct
   assert.ok(Hey.notifyCommand(Hey.normalizeEvent({ id: 1, starts_at: "2026-09-29T09:30:00Z" }), 0, true).command[2].indexOf("runtime.startswith('/')") !== -1)
 })
 
+test("only Google birthday events get cherry pink and a gift prefix", function() {
+  var raw = { id: "b", title: "Anniversaire de Camille", event_type: "birthday",
+    all_day: true, starts_at: "2026-11-07T00:00:00Z", color: "#9fc6e7" }
+  var birthday = Hey.normalizeEvent(raw, "google")
+  assert.strictEqual(birthday.title, "🎁 Anniversaire de Camille")
+  assert.strictEqual(birthday.color, "#d81b60")
+  assert.strictEqual(birthday.birthday, true)
+  assert.strictEqual(Hey.calendarColor(birthday.color, "#000000"), "#d81b60")
+  assert.strictEqual(Hey.normalizeEvent(Object.assign({}, raw, {title: birthday.title}), "google").title, birthday.title)
+  for (var source of ["hey", "feeds", "google"]) {
+    var ordinary = Hey.normalizeEvent(Object.assign({}, raw, source === "google" ? {event_type: "default"} : {}), source)
+    assert.strictEqual(ordinary.title, raw.title)
+    assert.strictEqual(ordinary.color, raw.color)
+    assert.strictEqual(ordinary.birthday, false)
+  }
+})
+
 test("declined invitations are hidden without removing other responses", function() {
   var events = ["declined", "accepted", "tentative", "needsAction", undefined].map(function(status, index) {
     return { key: String(index), status: status, allDay: index === 0 }

@@ -35,6 +35,8 @@ lectures et écritures. Aucun secret n’est enregistré dans le cache.
 
 ## Comportements conservés
 
+- Anniversaires Google (`eventType: birthday`) en rose cerisier `#D81B60`,
+  texte blanc et préfixe 🎁. Les titres dans Google restent inchangés.
 - Événements refusés masqués dans toutes les vues, y compris hors ligne.
 - Interface française et dates saisies en français ou en anglais.
 - Champs Qt natifs : accents, touches mortes, Compose, sélection et annulation.

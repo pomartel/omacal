@@ -352,6 +352,7 @@ def project_event(event, calendar, palette):
         "id": event["id"], "occurrence_id": event["id"] if series else "", "parent_id": series,
         "recurring": bool(series or event.get("recurrence")),
         "title": str(event.get("summary") or "(untitled)"),
+        "event_type": str(event.get("eventType") or "default"),
         "all_day": all_day, "starts_at": starts_at, "ends_at": ends_at,
         "calendar_id": calendar["id"], "calendar": calendar_name(calendar), "color": str(color),
         "location": str(event.get("location") or ""), "url": str(event.get("htmlLink") or ""),

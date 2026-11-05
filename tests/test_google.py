@@ -43,6 +43,15 @@ class Projection(unittest.TestCase):
         self.assertEqual((event["starts_at"], event["ends_at"]), ("2026-10-13T00:00:00Z", "2026-10-16T00:00:00Z"))
         self.assertTrue(event["all_day"])
 
+    def test_birthday_type_survives_projection(self):
+        raw = {"id": "birthday", "summary": "Anniversaire de Camille", "eventType": "birthday",
+               "start": {"date": "2026-11-07"}, "end": {"date": "2026-11-08"}}
+        event = google.project_event(raw, CALENDAR, {})
+        self.assertEqual(event["event_type"], "birthday")
+        self.assertEqual(event["title"], raw["summary"])
+        self.assertFalse(event["editable"])
+        self.assertEqual(google.project_event(dict(raw, eventType="default"), CALENDAR, {})["event_type"], "default")
+
     def test_default_reminders_are_the_calendars_popups(self):
         event = google.project_event({"id": "m", "summary": "Call", "start": {"dateTime": "2026-10-19T09:00:00+02:00"},
                                       "end": {"dateTime": "2026-10-19T10:00:00+02:00"}, "reminders": {"useDefault": True}},

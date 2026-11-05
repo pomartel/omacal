@@ -33,7 +33,7 @@ Item {
   readonly property string position: event ? Cal.spanPosition(event, dayKey) : "single"
   readonly property bool pill: !!event && (event.allDay || position === "middle")
   readonly property color fill: event ? Cal.calendarColor(event.color, accent) : accent
-  readonly property color ink: Cal.calendarInk
+  readonly property color ink: event && event.birthday ? "#ffffff" : Cal.calendarInk
   readonly property bool past: Cal.hasEnded(event, nowMs)
   readonly property bool current: Cal.isNow(event, nowMs)
   readonly property bool declined: Cal.isDeclined(event)
@@ -102,7 +102,7 @@ Item {
       textFormat: Text.PlainText
       anchors.verticalCenter: parent.verticalCenter
       text: root.position === "middle" ? "suite" : Cal.calendarLabel(root.event ? root.event.calendar : "")
-      color: Qt.rgba(0.106, 0.149, 0.196, 0.6)
+      color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.6)
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
     }
@@ -127,7 +127,7 @@ Item {
       Text {
         textFormat: Text.PlainText
         text: root.timeText
-        color: Qt.rgba(0.106, 0.149, 0.196, 0.72)
+        color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.72)
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }
@@ -161,7 +161,7 @@ Item {
       textFormat: Text.PlainText
       width: parent.width
       text: root.metaText
-      color: Qt.rgba(0.106, 0.149, 0.196, 0.66)
+      color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.66)
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
       elide: Text.ElideRight
@@ -200,7 +200,7 @@ Item {
     anchors.rightMargin: Style.space(10)
     anchors.verticalCenter: parent.verticalCenter
     text: "󰍫"
-    color: joinMouse.containsMouse ? root.accent : Qt.rgba(0.106, 0.149, 0.196, 0.6)
+    color: joinMouse.containsMouse ? root.accent : Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.6)
     font.family: root.fontFamily
     font.pixelSize: Style.font.icon
 
@@ -228,7 +228,7 @@ Item {
     anchors.rightMargin: Style.space(10)
     anchors.verticalCenter: parent.verticalCenter
     text: "󰆴"
-    color: deleteMouse.containsMouse ? Commons.Color.urgent : Qt.rgba(0.106, 0.149, 0.196, 0.6)
+    color: deleteMouse.containsMouse ? Commons.Color.urgent : Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.6)
     font.family: root.fontFamily
     font.pixelSize: Style.font.icon
 

@@ -158,6 +158,9 @@ function normalizeEvent(raw, source) {
   }
 
   var from = boundedString(source, 32)
+  var birthday = from === "google" && raw.event_type === "birthday"
+  var title = boundedString(raw.title, 256) || "(untitled)"
+  if (birthday && title.indexOf("🎁 ") !== 0) title = "🎁 " + title
   var seriesId = boundedString(raw.id, 160)
   var occurrenceId = boundedString(raw.occurrence_id, 160)
   var calendarId = raw.calendar_id === 0 ? "" : boundedString(raw.calendar_id, 256)
@@ -172,7 +175,8 @@ function normalizeEvent(raw, source) {
     // id in `id` and the series' here.
     parentId: boundedString(raw.parent_id, 160),
     recurring: raw.recurring === true,
-    title: boundedString(raw.title, 256) || "(untitled)",
+    title: title,
+    birthday: birthday,
     allDay: allDay,
     startsAt: startsAt,
     endsAt: boundedString(raw.ends_at, 64) || startsAt,
@@ -180,7 +184,7 @@ function normalizeEvent(raw, source) {
     calendarId: calendarId,
     calendarKey: calendarKey(from, calendarId),
     calendar: boundedString(raw.calendar, 128),
-    color: boundedString(raw.color, 32).toLowerCase(),
+    color: birthday ? "#d81b60" : boundedString(raw.color, 32).toLowerCase(),
     joinUrl: safeUrl(raw.join_url),
     joinTitle: boundedString(raw.join_title, 64),
     url: safeUrl(raw.url),
