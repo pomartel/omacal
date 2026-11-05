@@ -883,6 +883,11 @@ function isDeclined(event) {
   return !!event && String(event.status) === "declined"
 }
 
+// Hide declined invitations in every view, including cached events.
+function withoutDeclined(events) {
+  return events.filter(function(event) { return !isDeclined(event) })
+}
+
 // The thing you are in, or the thing you are about to be in. An all-day
 // event only when nothing timed is left, so a birthday does not sit in the
 // tooltip over a standup in ten minutes.
@@ -1832,6 +1837,7 @@ if (typeof module !== "undefined") {
     hasEnded: hasEnded,
     isNow: isNow,
     isDeclined: isDeclined,
+    withoutDeclined: withoutDeclined,
     currentOrNextEvent: currentOrNextEvent,
     normalizedAlertLead: normalizedAlertLead,
     imminentEvent: imminentEvent,

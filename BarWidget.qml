@@ -289,7 +289,7 @@ BarWidget {
     }
     for (var e = 0; e < speaking.length; e++)
       errors.push(speaking.length > 1 || root.activeSources.length > 0 ? speaking[e].name + ": " + speaking[e].error : speaking[e].error)
-    root.events = Cal.withoutHidden(all, root.hiddenCalendars).filter(function(e) { return !root.deletedEventKeys[e.key]; })
+    root.events = Cal.withoutDeclined(Cal.withoutHidden(all, root.hiddenCalendars)).filter(function(e) { return !root.deletedEventKeys[e.key]; })
     root.byDay = Cal.indexByDay(root.events)
     root.calendars = Cal.mergeCalendars(lists)
     // The calendars a new event can go on, labelled as in the full list.

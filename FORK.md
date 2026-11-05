@@ -35,6 +35,7 @@ lectures et écritures. Aucun secret n’est enregistré dans le cache.
 
 ## Comportements conservés
 
+- Événements refusés masqués dans toutes les vues, y compris hors ligne.
 - Interface française et dates saisies en français ou en anglais.
 - Champs Qt natifs : accents, touches mortes, Compose, sélection et annulation.
   La restriction upstream de lecture du presse-papiers ne s’applique donc pas.

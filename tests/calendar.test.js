@@ -366,6 +366,17 @@ test("reminders keep their files in the runtime directory, never in /tmp", funct
   assert.ok(Hey.notifyCommand(Hey.normalizeEvent({ id: 1, starts_at: "2026-09-29T09:30:00Z" }), 0, true).command[2].indexOf("runtime.startswith('/')") !== -1)
 })
 
+test("declined invitations are hidden without removing other responses", function() {
+  var events = ["declined", "accepted", "tentative", "needsAction", undefined].map(function(status, index) {
+    return { key: String(index), status: status, allDay: index === 0 }
+  })
+  assert.deepStrictEqual(Hey.withoutDeclined(events), events.slice(1))
+  assert.strictEqual(events.length, 5)
+  assert.deepStrictEqual(Hey.withoutDeclined([]), [])
+  events[0].status = "accepted"
+  assert.deepStrictEqual(Hey.withoutDeclined(events), events)
+})
+
 test("declined events never notify", function() {
   var now = Date.UTC(2026, 8, 28, 10, 30)
   var e = Hey.normalizeEvent({ id: 1, title: "Nope", starts_at: "2026-09-28T11:00:00Z", status: "declined",
