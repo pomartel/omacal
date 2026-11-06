@@ -330,13 +330,12 @@ ShellRoot {
         return
       }
       if (phase === 3) {
-        // The year meter should start at the card padding on both axes.
-        var yearLabel = shell.findByProperty(panel, "text", String(panel.today.getFullYear()))
-        var meter = yearLabel.parent
-        var origin = meter.mapToItem(cardItem, 0, 0)
+        // The month grid should start at the card padding on both axes.
+        var grid = shell.findByProperty(panel, "objectName", "monthGrid")
+        var origin = grid.mapToItem(cardItem, 0, 0)
         if (Math.abs(origin.x - cardItem.contentLeftInset) > 1
             || Math.abs(origin.y - cardItem.contentTopInset) > 1
-            || Math.abs(cardItem.width - origin.x - meter.width - cardItem.contentRightInset) > 1)
+            || Math.abs(cardItem.width - origin.x - grid.width - cardItem.contentRightInset) > 1)
           throw new Error("Calendar padding does not match the card insets")
         shell.save(cardItem, "panel-full.png")
       }

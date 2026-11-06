@@ -8,7 +8,7 @@ import qs.Ui
 import "Model.js" as Model
 import "Calendar.js" as Cal
 
-// The clock’s calendar popup shows year progress above the month grid.
+// The clock’s calendar popup opens on the month grid.
 //
 // BarWidget.qml owns the bar label and hands this panel the button to
 // anchor against.
@@ -48,13 +48,8 @@ Panel {
   readonly property date viewDate: new Date(viewYear, viewMonth, 1)
   readonly property bool viewingCurrentMonth: viewYear === today.getFullYear() && viewMonth === today.getMonth()
 
-  // Pinned to today, not to the month being browsed — stepping through the
-  // calendar does not change how much of the year is gone.
-  readonly property real yearDone: Model.yearProgress(today.getFullYear(), today.getMonth(), today.getDate())
-  readonly property int yearDonePercent: Model.yearProgressPercent(today.getFullYear(), today.getMonth(), today.getDate())
-
-  // Memento mori, for anyone who goes looking: double-tapping the year bar
-  // asks for a birth year and a life expectancy, and a second bar tracks one
+  // Memento mori, for anyone who goes looking: double-tapping the month label
+  // asks for a birth year and a life expectancy, and an optional bar tracks one
   // against the other. A birth year rather than an age, so it keeps counting
   // on its own. Without one the bar stays hidden.
   readonly property int birthYear: Model.parseBirthYear(setting("birthYear", 0), today.getFullYear())
@@ -530,127 +525,59 @@ Panel {
             text: Fr.t("help.keyboard")
           }
 
-          // ---- Year progress
-          Item {
-            width: parent.width
-            height: yearBlock.height
+          Row {
+            visible: root.editingLife
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: Style.space(10)
 
-            Item {
-              id: yearBlock
-              anchors.horizontalCenter: parent.horizontalCenter
-              width: gridColumn.width
-              height: Math.max(yearLabel.implicitHeight, Style.space(10))
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              text: Fr.t("text.naissance")
+              color: Qt.darker(root.contentForeground, 1.5)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.letterSpacing: 1
+            }
 
-              TapHandler {
-                enabled: !root.editingLife
-                onDoubleTapped: root.startEditingLife()
-              }
+            KeyField {
+              id: bornField
+              width: Style.space(70)
+              anchors.verticalCenter: parent.verticalCenter
+              placeholderText: Fr.t("text.annee")
+              foreground: root.contentForeground
+              font.family: root.contentFontFamily
+              allowed: /[0-9]/
+              maximumLength: 4
 
-              Row {
-                visible: root.editingLife
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(10)
+              keyHandler: function(event) { root.handleLifeKey(event, expectancyField) }
+            }
 
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  text: Fr.t("text.naissance")
-                  color: Qt.darker(root.contentForeground, 1.5)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.bodySmall
-                  font.letterSpacing: 1
-                }
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.verticalCenterOffset: 0
+              leftPadding: Style.space(6)
+              text: Fr.t("text.age_prevu")
+              color: Qt.darker(root.contentForeground, 1.5)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.letterSpacing: 1
+            }
 
-                KeyField {
-                  id: bornField
-                  width: Style.space(70)
-                  anchors.verticalCenter: parent.verticalCenter
-                  placeholderText: Fr.t("text.annee")
-                  foreground: root.contentForeground
-                  font.family: root.contentFontFamily
-                  allowed: /[0-9]/
-                  maximumLength: 4
+            KeyField {
+              id: expectancyField
+              width: Style.space(60)
+              anchors.verticalCenter: parent.verticalCenter
+              placeholderText: "90"
+              foreground: root.contentForeground
+              font.family: root.contentFontFamily
+              allowed: /[0-9]/
+              maximumLength: 4
 
-                  keyHandler: function(event) { root.handleLifeKey(event, expectancyField) }
-                }
-
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  anchors.verticalCenterOffset: 0
-                  leftPadding: Style.space(6)
-                  text: Fr.t("text.age_prevu")
-                  color: Qt.darker(root.contentForeground, 1.5)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.bodySmall
-                  font.letterSpacing: 1
-                }
-
-                KeyField {
-                  id: expectancyField
-                  width: Style.space(60)
-                  anchors.verticalCenter: parent.verticalCenter
-                  placeholderText: "90"
-                  foreground: root.contentForeground
-                  font.family: root.contentFontFamily
-                  allowed: /[0-9]/
-                  maximumLength: 4
-
-                  keyHandler: function(event) { root.handleLifeKey(event, bornField) }
-                }
-              }
-
-              Text {
-                id: yearLabel
-                textFormat: Text.PlainText
-                visible: !root.editingLife
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.today.getFullYear()
-                color: Qt.darker(root.contentForeground, 1.5)
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.bodySmall
-                font.letterSpacing: 1
-              }
-
-              Text {
-                id: yearPercent
-                textFormat: Text.PlainText
-                visible: !root.editingLife
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.yearDonePercent + "%"
-                color: root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
-
-              Rectangle {
-                id: yearTrack
-                visible: !root.editingLife
-                anchors.left: yearLabel.right
-                anchors.right: yearPercent.left
-                anchors.leftMargin: Style.space(12)
-                anchors.rightMargin: Style.space(12)
-                anchors.verticalCenter: parent.verticalCenter
-                height: Style.space(6)
-                radius: Style.cornerRadius > 0 ? height / 2 : 0
-                color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
-
-                Rectangle {
-                  width: Math.round(parent.width * root.yearDone)
-                  height: parent.height
-                  radius: parent.radius
-                  color: Style.selectedStateColor(root.contentForeground, Commons.Color.accent)
-
-                  Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-                }
-              }
+              keyHandler: function(event) { root.handleLifeKey(event, bornField) }
             }
           }
 
-          // ---- Memento mori. Only here once someone has gone looking and
-          //      given an age; the same rail as the year above it, measured
-          //      against a nominal lifetime.
+          // ---- Optional lifetime progress.
           Item {
             visible: root.birthYear > 0
             width: parent.width
@@ -728,7 +655,7 @@ Panel {
           //      exactly as tall in February as it is in August.
           Item {
             width: parent.width
-            height: gridColumn.y + gridColumn.height
+            height: gridColumn.height
 
             WheelHandler {
               onWheel: function(event) {
@@ -741,9 +668,7 @@ Panel {
 
             Column {
               id: gridColumn
-              // The meter above is a solid rule; the grid needs room to
-              // read as its own block rather than hanging off it.
-              y: Style.space(18)
+              objectName: "monthGrid"
               anchors.horizontalCenter: parent.horizontalCenter
               spacing: Style.space(3)
 
@@ -960,12 +885,7 @@ Panel {
             }
           }
 
-          // ---- Month stepping, spanning the grid it drives. The chevrons
-          //      sit on the grid's outer bounds, the same edges the year
-          //      rail above uses, so the row reads as the panel's other
-          //      full-width rail instead of a cluster floating in space.
-          //      The label is centered and fixed-width, so it holds still
-          //      from "MAY" to "SEPTEMBER".
+          // ---- Month navigation.
           Item {
             width: parent.width
             height: monthNav.height
@@ -990,11 +910,15 @@ Panel {
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.body
                 font.letterSpacing: 1
+
+                TapHandler {
+                  onDoubleTapped: root.startEditingLife()
+                }
               }
 
               PanelActionButton {
                 // Pulled out by the button's own padding so the glyph, not
-                // its hit box, lines up with the "2026" on the year rail.
+                // its hit box, lines up with the grid edge.
                 anchors.left: parent.left
                 anchors.leftMargin: -Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
