@@ -294,12 +294,13 @@ ShellRoot {
     }
   }
 
-  function findByProperty(item, name) {
+  function findByProperty(item, name, value) {
     if (!item) return null
-    if (item[name] !== undefined && item.hasOwnProperty && item.hasOwnProperty(name)) return item
+    if (item[name] !== undefined && item.hasOwnProperty && item.hasOwnProperty(name)
+        && (value === undefined || item[name] === value)) return item
     var kids = item.data || item.children || []
     for (var i = 0; i < kids.length; i++) {
-      var found = findByProperty(kids[i], name)
+      var found = findByProperty(kids[i], name, value)
       if (found) return found
     }
     return null
@@ -328,7 +329,17 @@ ShellRoot {
         phase--
         return
       }
-      if (phase === 3) shell.save(cardItem, "panel-full.png")
+      if (phase === 3) {
+        // The year meter should start at the card padding on both axes.
+        var yearLabel = shell.findByProperty(panel, "text", String(panel.today.getFullYear()))
+        var meter = yearLabel.parent
+        var origin = meter.mapToItem(cardItem, 0, 0)
+        if (Math.abs(origin.x - cardItem.contentLeftInset) > 1
+            || Math.abs(origin.y - cardItem.contentTopInset) > 1
+            || Math.abs(cardItem.width - origin.x - meter.width - cardItem.contentRightInset) > 1)
+          throw new Error("Calendar padding does not match the card insets")
+        shell.save(cardItem, "panel-full.png")
+      }
       if (phase === 4) {
         // The feed list is the sample's, never this machine's.
         var settingsView = shell.findByProperty(panel, "feedContext")

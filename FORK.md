@@ -38,6 +38,8 @@ lectures et écritures. Aucun secret n’est enregistré dans le cache.
 - Anniversaires Google (`eventType: birthday`) en rose cerisier `#D81B60`,
   texte blanc et préfixe 🎁. Les titres dans Google restent inchangés.
 - Événements refusés masqués dans toutes les vues, y compris hors ligne.
+- Le panneau commence par la progression de l’année. Les marges horizontales
+  du panneau suivent sa marge verticale.
 - Interface française et dates saisies en français ou en anglais.
 - Champs Qt natifs : accents, touches mortes, Compose, sélection et annulation.
   La restriction upstream de lecture du presse-papiers ne s’applique donc pas.

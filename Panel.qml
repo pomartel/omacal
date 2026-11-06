@@ -8,13 +8,7 @@ import qs.Ui
 import "Model.js" as Model
 import "Calendar.js" as Cal
 
-// The clock's calendar popup: a month grid with ISO week numbers, built to
-// sit beside the weather panel — same hero-over-detail composition, same
-// spacing scale, same small-caps labels.
-//
-// The grid is a read-out rather than a picker: today is the only marked
-// day, and the only thing that moves is which month is on screen —
-// chevrons, the scroll wheel, and the arrow keys all step it.
+// The clock’s calendar popup shows year progress above the month grid.
 //
 // BarWidget.qml owns the bar label and hands this panel the button to
 // anchor against.
@@ -497,7 +491,8 @@ Panel {
     open: root.opened
     centerOnBar: true
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(560))
+    contentWidth: panel.fittedContentWidth(gridColumn.width + panel.padding * 2
+      + Border.left(panel.borderSpec) + Border.right(panel.borderSpec))
     contentHeight: panel.fittedContentHeight(calendarColumn.implicitHeight)
 
     Item {
@@ -535,77 +530,13 @@ Panel {
             text: Fr.t("help.keyboard")
           }
 
-          // ---- Hero: today, centered. Once the view has stepped back
-          //      it is also the way home — clicking the date you are
-          //      looking for beats hunting for a reset button.
+          // ---- Year progress
           Item {
             width: parent.width
-            height: heroRow.height
-
-            Row {
-              id: heroRow
-              anchors.horizontalCenter: parent.horizontalCenter
-              spacing: Style.space(22)
-
-              Text {
-                // Baseline-aligned, not center-aligned: "July 26" carries a
-                // descender, so centering the two boxes leaves the icon
-                // sitting visibly low against the digits.
-                anchors.baseline: heroDate.baseline
-                text: "󰃭"
-                color: heroMouse.containsMouse
-                  ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
-                  : root.contentForeground
-                font.family: root.contentFontFamily
-                // Decorative, and deliberately outside the Style.font.*
-                // scale. Sized so the glyph reads at the cap height of the
-                // date beside it rather than towering over it.
-                font.pixelSize: 48
-              }
-
-              Text {
-                id: heroDate
-                textFormat: Text.PlainText
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.today.toLocaleDateString(root.labelLocale, "d MMMM")
-                color: heroMouse.containsMouse
-                  ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
-                  : root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: 52
-                font.bold: true
-              }
-            }
-
-            MouseArea {
-              id: heroMouse
-              x: heroRow.x
-              y: heroRow.y
-              width: heroRow.width
-              height: heroRow.height
-              enabled: !root.viewingCurrentMonth
-              hoverEnabled: enabled
-              cursorShape: Qt.PointingHandCursor
-              onClicked: root.goToToday()
-
-              PanelToolTip {
-                visible: heroMouse.containsMouse
-                text: Fr.t("text.revenir_a_aujourdhui")
-                fontFamily: root.contentFontFamily
-              }
-            }
-          }
-
-          // ---- Year progress, doubling as the rule under the hero:
-          //      a plain hairline said nothing, and whole days done
-          //      over days in the year says the same thing louder.
-          Item {
-            width: parent.width
-            height: yearBlock.y + yearBlock.height
+            height: yearBlock.height
 
             Item {
               id: yearBlock
-              y: Style.space(6)
               anchors.horizontalCenter: parent.horizontalCenter
               width: gridColumn.width
               height: Math.max(yearLabel.implicitHeight, Style.space(10))
