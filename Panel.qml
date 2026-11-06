@@ -508,6 +508,8 @@ Panel {
 
         Column {
           id: calendarColumn
+          topPadding: Style.space(6)
+          bottomPadding: topPadding
           // Never narrower than the grid. The popup width is capped to what
           // the screen allows, and a fixed seven-column grid would otherwise
           // lose its last days off the edge instead of scrolling.
@@ -948,8 +950,8 @@ Panel {
           Item {
             width: parent.width
             height: root.showingSettings
-              ? settingsView.y + settingsView.implicitHeight + Style.space(6)
-              : dayColumn.y + dayColumn.implicitHeight + Style.space(6)
+              ? settingsView.y + settingsView.implicitHeight
+              : dayColumn.y + dayColumn.implicitHeight
 
             SettingsView {
               id: settingsView
@@ -966,6 +968,7 @@ Panel {
 
             Column {
               id: dayColumn
+              objectName: "dayDetails"
               visible: !root.showingSettings
               y: Style.space(4)
               anchors.horizontalCenter: parent.horizontalCenter

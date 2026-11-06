@@ -38,8 +38,8 @@ lectures et écritures. Aucun secret n’est enregistré dans le cache.
 - Anniversaires Google (`eventType: birthday`) en rose cerisier `#D81B60`,
   texte blanc et préfixe 🎁. Les titres dans Google restent inchangés.
 - Événements refusés masqués dans toutes les vues, y compris hors ligne.
-- Le panneau s’ouvre sur la grille du mois, avec la même marge en haut et sur
-  les côtés. Un double-clic sur le nom du mois ouvre les réglages de la barre de vie.
+- Le panneau s’ouvre sur la grille du mois, avec la même marge en haut et en bas.
+  Un double-clic sur le nom du mois ouvre les réglages de la barre de vie.
 - Interface française et dates saisies en français ou en anglais.
 - Champs Qt natifs : accents, touches mortes, Compose, sélection et annulation.
   La restriction upstream de lecture du presse-papiers ne s’applique donc pas.

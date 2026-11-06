@@ -330,11 +330,17 @@ ShellRoot {
         return
       }
       if (phase === 3) {
-        // The month grid should start at the card padding on both axes.
+        // Compare the vertical margins across the whole scrollable content.
         var grid = shell.findByProperty(panel, "objectName", "monthGrid")
         var origin = grid.mapToItem(cardItem, 0, 0)
+        var details = shell.findByProperty(panel, "objectName", "dayDetails")
+        var column = grid.parent.parent
+        var topGap = grid.mapToItem(column, 0, 0).y
+        var bottomGap = column.height - details.mapToItem(column, 0, details.height).y
+        if (Math.abs(topGap - bottomGap) > 1 || bottomGap < 1)
+          throw new Error("Calendar top and bottom padding must match")
         if (Math.abs(origin.x - cardItem.contentLeftInset) > 1
-            || Math.abs(origin.y - cardItem.contentTopInset) > 1
+            || Math.abs(origin.y - cardItem.contentTopInset - topGap) > 1
             || Math.abs(cardItem.width - origin.x - grid.width - cardItem.contentRightInset) > 1)
           throw new Error("Calendar padding does not match the card insets")
         shell.save(cardItem, "panel-full.png")
