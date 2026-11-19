@@ -24,6 +24,10 @@ ShellRoot {
 
   function check() {
     if (root.phase !== 0) return
+    if (widget.notificationsEnabled || widget.liveSync) {
+      root.fail("text settings did not turn off notifications and live sync")
+      return
+    }
     if (!root.probeRestarted || !restartedSource.ready) return
     var hey = bySource("hey"), google = bySource("google"), feeds = bySource("feeds")
     if (hey.length === 0 || google.length === 0 || feeds.length === 0) return
@@ -54,7 +58,11 @@ ShellRoot {
   Plugin.BarWidget {
     id: widget
     moduleName: "crmne.omacal"
-    settings: ({ id: "crmne.omacal", googleEnabled: true, heyEnabled: true, feedsEnabled: true, googleAccount: "cal@example.test", notifications: false, liveSync: false, refreshIntervalSec: 30 })
+    settings: ({
+      id: "crmne.omacal", googleAccount: "cal@example.test", refreshIntervalSec: 30,
+      googleEnabled: "true", heyEnabled: "true", feedsEnabled: "true",
+      notifications: "false", liveSync: "false"
+    })
     onWriteFinished: function(ok, message) {
       if (!ok) { root.fail("write " + root.phase + ": " + message); return }
       root.phase++

@@ -20,6 +20,9 @@ compte dans `googleAccount`.
 
 Google est activé par défaut ; HEY, les flux et les suggestions de lieux sont
 désactivés jusqu’à leur activation explicite. L’horloge utilise `fr_CA`.
+Les réglages binaires acceptent aussi le texte transmis par `omarchy bar set`.
+Par exemple, `omarchy bar set pomartel.omacal notifications false` désactive
+les notifications.
 Les identifiants IPC du README deviennent `pomartel.omacal` dans ce fork :
 
 ```sh

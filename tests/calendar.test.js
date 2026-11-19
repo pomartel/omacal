@@ -816,6 +816,17 @@ test("a helper's own words for failed weeks reach the panel", function() {
   assert.strictEqual(Hey.localPath("file:///home/me/My%20Plugins/omacal/"), "/home/me/My Plugins/omacal/")
 })
 
+test("on/off settings accept booleans and text from omarchy bar set", function() {
+  assert.strictEqual(Hey.settingOn(true, false), true)
+  assert.strictEqual(Hey.settingOn(false, true), false)
+  assert.strictEqual(Hey.settingOn("true", false), true)
+  assert.strictEqual(Hey.settingOn(" FALSE ", true), false)
+  for (var value of [undefined, null, "", "yes", 1, 0, {}, ["false"]]) {
+    assert.strictEqual(Hey.settingOn(value, true), true)
+    assert.strictEqual(Hey.settingOn(value, false), false)
+  }
+})
+
 if (failures > 0) {
   console.error(failures + " failed [" + tz + "]")
   process.exit(1)

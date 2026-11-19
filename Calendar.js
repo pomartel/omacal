@@ -1079,6 +1079,17 @@ function normalizedRefreshInterval(value) {
   return Math.min(3600, seconds)
 }
 
+// Omarchy's settings UI writes booleans, while omarchy bar set writes text by default.
+function settingOn(value, fallback) {
+  if (value === true || value === false) return value
+  if (typeof value === "string") {
+    var text = value.trim().toLowerCase()
+    if (text === "true") return true
+    if (text === "false") return false
+  }
+  return fallback
+}
+
 // ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
@@ -1853,6 +1864,7 @@ if (typeof module !== "undefined") {
     barLabel: barLabel,
     minutesUntil: minutesUntil,
     normalizedRefreshInterval: normalizedRefreshInterval,
+    settingOn: settingOn,
     reminderKey: reminderKey,
     dueReminders: dueReminders,
     reminderLead: reminderLead,

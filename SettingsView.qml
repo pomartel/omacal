@@ -309,7 +309,7 @@ FocusScope {
       width: parent.width
       label: "HEY"
       description: root.sourceNote("hey", Fr.t("source.hey_help"))
-      checked: root.value("heyEnabled", false) === true
+      checked: Cal.settingOn(root.value("heyEnabled"), false)
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.save("heyEnabled", !checked)
@@ -319,7 +319,7 @@ FocusScope {
       width: parent.width
       label: Fr.t("text.google_agenda")
       description: root.sourceNote("google", Fr.t("source.google_help"))
-      checked: root.value("googleEnabled", true) !== false
+      checked: Cal.settingOn(root.value("googleEnabled"), true)
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.save("googleEnabled", !checked)
@@ -500,7 +500,7 @@ FocusScope {
       width: parent.width
       label: Fr.t("text.notifications")
       description: Fr.t("text.afficher_les_rappels_des_evenements_dans_les_notifications_du_bur")
-      checked: root.value("notifications", true) !== false
+      checked: Cal.settingOn(root.value("notifications"), true)
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.save("notifications", !checked)
@@ -511,7 +511,7 @@ FocusScope {
       visible: !!root.host && root.host.capabilities.watch
       label: Fr.t("text.synchronisation_en_direct")
       description: Fr.t("text.afficher_en_quelques_secondes_les_modifications_faites_ailleurs")
-      checked: root.value("liveSync", true) !== false
+      checked: Cal.settingOn(root.value("liveSync"), true)
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.save("liveSync", !checked)
@@ -522,7 +522,7 @@ FocusScope {
       width: parent.width
       label: Fr.t("text.suggerer_des_lieux")
       description: Fr.t("places.help")
-      checked: root.value("placeSuggestions", false) === true
+      checked: Cal.settingOn(root.value("placeSuggestions"), false)
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.save("placeSuggestions", !checked)
